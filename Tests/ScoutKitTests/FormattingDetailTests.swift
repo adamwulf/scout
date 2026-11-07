@@ -83,7 +83,7 @@ final class FormattingDetailTests: XCTestCase {
         let customer: JSONValue = .object([
             "id": .integer(100), "firstName": .string("Vernon"), "lastName": .string("Bear"),
             "organization": .string("Acme, Inc"), "jobTitle": .string("CEO"),
-            "background": .string("Met at <b>conference</b>.\nLikes tea."),
+            "background": .string("Contact Jane <jane@acme.com> at <b>conference</b>.\nLikes tea &amp; cake."),
             "conversationCount": .integer(10),
             "_embedded": .object([
                 "emails": .array([.object(["id": .integer(1), "value": .string("bear@acme.com"), "type": .string("work")])]),
@@ -117,7 +117,8 @@ final class FormattingDetailTests: XCTestCase {
 
         ## Background
 
-        Met at conference. Likes tea.
+        Contact Jane <jane@acme.com> at <b>conference</b>.
+        Likes tea &amp; cake.
 
         """)
     }

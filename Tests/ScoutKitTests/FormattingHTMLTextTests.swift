@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import ScoutKit
 
@@ -39,7 +40,32 @@ final class FormattingHTMLTextTests: XCTestCase {
     func testPlainTextKeepsItsLineBreaks() {
         XCTAssertEqual(text("Line 1\r\nLine 2\n\n\n\nLine 3  \n"), "Line 1\nLine 2\n\nLine 3")
         XCTAssertEqual(text("if x<y then\n  ok"), "if x<y then\n  ok")
-        XCTAssertEqual(text("1 < 2\nAT&amp;T"), "1 < 2\nAT&amp;T")
+        XCTAssertEqual(text("1 < 2\nAT&amp;T &copy; &bogus; R&D"), "1 < 2\nAT&T © &bogus; R&D")
+    }
+
+    func testPlainTextControlEntitiesAreRemovedAfterDecoding() {
+        XCTAssertEqual(text("Hi&#27;[31m&#7; there\n&#x202E;next&#x9B;"), "Hi[31m there\nnext")
+    }
+
+    func testPreparedPlainTextReadsBackAsWritten() throws {
+        let replies = [
+            "It's fine",
+            "Tom & Jerry <tj@example.com> said \"hi\"",
+            "<p>not html</p>",
+            "Line one\nLine two\n\nNew paragraph",
+            "Hi \"Jane\",\r\nIt's <ok> & done.\nBye",
+        ]
+        for reply in replies {
+            let html = try ReplyBody.prepare(reply, html: false)
+            XCTAssertEqual(text(html), reply.replacingOccurrences(of: "\r\n", with: "\n"), html)
+        }
+    }
+
+    func testListItemsKeepBulletWithBlockContent() {
+        XCTAssertEqual(text("<ul><li><p>One</p></li><li><div>Two</div></li><li>\n<p><br>Three</p></li><li></li></ul><p>After</p>"),
+                       "- One\n- Two\n- Three\n-\n\nAfter")
+        XCTAssertEqual(text("<ol><li><p>First</p><p>More</p></li><li><ul><li>Nested</li></ul></li></ol>"),
+                       "- First\nMore\n-\n  - Nested")
     }
 
     func testLiteralAngleBracketsAndUnclosedTags() {

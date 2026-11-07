@@ -2,11 +2,13 @@ extension OutputFormatter {
     /// Small, deterministic HTML-to-text conversion for readable markdown output. It is not an HTML
     /// parser: it keeps text, collapses whitespace, turns block elements into line breaks and list
     /// items into `- ` lines, skips scripts, styles and comments, and keeps http(s) and mailto links
-    /// as markdown links. Text without markup is treated as plain text and keeps its line breaks.
+    /// as markdown links. Text without tags keeps its line breaks but still has entities decoded,
+    /// because escaped one-line replies such as `It&#39;s` contain no tags.
     enum HTMLText {
         static func plainText(_ input: String) -> String {
-            let scalars = Array(TerminalText.multiline(input).unicodeScalars)
-            guard containsMarkup(scalars) else { return tidy(String(String.UnicodeScalarView(scalars))) }
+            let normalized = TerminalText.multiline(input)
+            let scalars = Array(normalized.unicodeScalars)
+            guard containsMarkup(scalars) else { return tidy(TerminalText.multiline(decodeEntities(normalized))) }
             var writer = Writer()
             var skipping: String?
             var index = 0
@@ -47,6 +49,9 @@ extension OutputFormatter {
             private var pendingSpace = false
             private var preformattedDepth = 0
             private var listDepth = 0
+            /// True right after a list bullet until item text is written, so an item's opening
+            /// `<p>` or `<div>` does not separate the bullet from its content.
+            private var afterBullet = false
             private var links: [(href: String?, start: Int)] = []
 
             var result: String { String(String.UnicodeScalarView(output)) }
@@ -58,24 +63,29 @@ extension OutputFormatter {
             mutating func write(_ scalar: Unicode.Scalar) {
                 if preformattedDepth > 0 {
                     pendingSpace = false
+                    afterBullet = false
                     output.append(scalar)
                 } else if scalar.properties.isWhitespace {
                     pendingSpace = true
                 } else {
                     flushSpace()
+                    afterBullet = false
                     output.append(scalar)
                 }
             }
 
             mutating func handle(_ tag: Tag) {
                 let name = tag.name
+                if tag.isClosing || name == "li" { afterBullet = false }
                 if name == "br" {
-                    pendingSpace = false
-                    output.append("\n")
+                    if !afterBullet {
+                        pendingSpace = false
+                        output.append("\n")
+                    }
                 } else if name == "ul" || name == "ol" {
-                    let isNested = tag.isClosing ? listDepth > 1 : listDepth > 0
-                    if isNested { lineBreak() } else { paragraphBreak() }
-                    listDepth = max(0, listDepth + (tag.isClosing ? -1 : 1))
+                    if tag.isClosing { listDepth = max(0, listDepth - 1) }
+                    if listDepth > 0 { lineBreak() } else { paragraphBreak() }
+                    if !tag.isClosing { listDepth += 1 }
                 } else if HTMLText.paragraphElements.contains(name) {
                     paragraphBreak()
                     if name == "pre" { preformattedDepth = max(0, preformattedDepth + (tag.isClosing ? -1 : 1)) }
@@ -87,6 +97,7 @@ extension OutputFormatter {
                         output.append(contentsOf: String(repeating: "  ", count: max(0, listDepth - 1)).unicodeScalars)
                         output.append("-")
                         pendingSpace = true
+                        afterBullet = true
                     }
                 } else if name == "td" || name == "th" {
                     pendingSpace = true
@@ -104,13 +115,17 @@ extension OutputFormatter {
             }
 
             private mutating func lineBreak() {
+                guard !afterBullet else { return }
                 pendingSpace = false
                 if let last = output.last, last != "\n" { output.append("\n") }
             }
 
+            /// A blank line between blocks; inside a list item it is a single line break so the
+            /// list stays together.
             private mutating func paragraphBreak() {
+                guard !afterBullet else { return }
                 lineBreak()
-                if !output.isEmpty && output.suffix(2) != ["\n", "\n"] { output.append("\n") }
+                if listDepth == 0 && !output.isEmpty && output.suffix(2) != ["\n", "\n"] { output.append("\n") }
             }
 
             private mutating func closeLink() {

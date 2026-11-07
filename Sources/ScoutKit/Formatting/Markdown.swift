@@ -74,7 +74,8 @@ extension OutputFormatter {
             }
             if let background = value["background"].string, !background.isEmpty {
                 document.heading(2, "Background")
-                document.paragraph(HTMLText.plainText(background))
+                // Background is plain-text notes, not HTML: keep angle brackets and line breaks.
+                document.paragraph(background)
             }
         }
 
@@ -164,7 +165,7 @@ extension OutputFormatter {
             let base = threadTypeNames[type] ?? (type.isEmpty ? "Thread" : "Thread (\(type))")
             switch thread["state"].string ?? "" {
             case "draft": return "DRAFT \(base.lowercased()) (not sent)"
-            case "review", "underreview": return "\(base) awaiting review (not sent)"
+            case "review": return "\(base) awaiting review (not sent)"
             case "hidden": return "\(base) (hidden)"
             case "bounced": return "\(base) (bounced)"
             case "published", "": return type == "message" ? "\(base) (sent)" : base
