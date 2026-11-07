@@ -9,7 +9,7 @@ The initial repository is empty except for `.gitignore`. Consulted `iris-helper`
 ## API findings
 
 - Use the Inbox API. OAuth client credentials is intended for internal integrations. Access tokens last two days; reuse them until expiration instead of requesting one per command.[^1]
-- Use v3 conversation listing with cursor pagination and exact email filtering.[^2] Search accepts field clauses rather than bare text and searches every status unless restricted.[^3] Customer listing also uses cursors and supports an email filter; its documentation does not promise exact matching, so filter returned customer emails case-insensitively for `--email` lookup.[^4]
+- Use v3 conversation listing with cursor pagination and exact email filtering.[^2] Search accepts field clauses rather than bare text and searches every status unless restricted.[^3] Customer listing also uses cursors and supports an email filter; its documentation does not promise exact matching, so return server results unchanged and describe this as an email filter.[^4]
 - Use v3 conversation detail and thread reads.[^12][^5] Fetch threads separately because embedded chats can be truncated.[^3] Inboxes and saved replies remain v2.[^6][^8][^9] Single-customer lookup also uses v2.[^13]
 - Replies use `POST /v2/conversations/{id}/reply`; explicitly set `draft: true` for drafts and `false` for sends. Return the new thread's `Resource-ID`. Preserve the fetched conversation status when drafting; sends default to active with an optional explicit status, because replies otherwise reopen conversations.[^7]
 - Saved replies have a list endpoint (preview) and a detail endpoint (full HTML text), scoped to an inbox.[^8][^9]
@@ -52,7 +52,7 @@ scout template TEMPLATE_ID [--inbox ID] [--format raw|markdown|json]
 scout ro <any read command above except auth login>
 ```
 
-- Lists return one complete API page; no arbitrary item limit that could discard part of a page. Cursor/page flags allow continuation. Conversations and customers use cursors, inboxes and threads use page numbers, and saved replies return a plain array. Print a complete shell-quoted next command preserving filters to stderr in every format; omit it on the last page. `show` fetches all thread pages. An email-filtered customer page may be empty after exact filtering while still having a continuation.
+- Lists return one complete API page; no arbitrary item limit that could discard part of a page. Cursor/page flags allow continuation. Conversations and customers use cursors, inboxes and threads use page numbers, and saved replies return a plain array. Print a complete shell-quoted next command preserving filters to stderr in every format; omit it on the last page. `show` fetches all thread pages.
 - List formats: table, json, jsonl, id. Detail formats: markdown, json. Library renderers are pure. JSON list output has stable items + continuation metadata; jsonl/id emit just rows and continuation hints go to stderr. Preserve customer properties and thread metadata in JSON without requiring every possible API field to be modeled.
 - `show` renders oldest first, with each thread labeled author, timestamp, type, and state (including drafts/hidden). Small deterministic HTML-to-text conversion provides readable output; JSON retains original HTML. Conversation tables show both API ID and human conversation number.
 - `template` defaults to raw HTML text with no wrapper, so it can be saved to a file and edited. `--inbox` overrides the environment default; templates require one or the other. Search ignores that default and uses only its query, including any `inboxId:` restriction. Reject obvious bare-text searches locally with a valid field-query example; do not recreate the server query parser.
@@ -76,11 +76,12 @@ scout send CONVERSATION_ID --body-file reply.txt [--status closed]
 - Template command exports full source text for manual adaptation. Direct template use supports literal templates; fail clearly on detected unresolved variables instead of sending placeholders. No custom template engine in v1. Document `scout template ID > reply.html`, edit, then `scout draft CID --body-file reply.html --html`.
 - Report draft/sent state and returned thread ID. On uncertain network failure, instruct user to inspect conversation before retrying.
 
-Acceptance: assert captured requests have correct customer, inbox template lookup, escaped or HTML body, explicit draft flag, status, and no repeated POST after uncertain failure. Test empty/conflicting body sources and unresolved template variables.
+Acceptance: assert captured requests have correct customer, inbox template lookup, escaped or HTML body, explicit draft flag, status, and no repeated POST after uncertain failure. Test empty/conflicting body sources, draft status preservation, unresolved variables in body/file/template inputs, and rejecting --html with --template.
 
 ## Phase 5: implementation review and handoff
 
 - README: build/run, credential key names, explicit env-file use outside project, cache location, supported commands, search examples (all statuses and inboxes by default), draft/send distinction, full-page continuation, template limitations. Identify API IDs in conversation URLs and clarify replies are authored by the `auth status` identity.
+- README and skill search examples quote email values: `scout search 'email:"jane@my-company.com"'`. Explain that reserved characters (including plus and hyphen) require quoted values. Also show `contactId:123` and `number:1234`; bare-text validation must accept these field clauses.[^3]
 - Contributor instructions with library/CLI boundary and test commands. Small `skill/scout/SKILL.md` agent usage guide: use `ro` for reads, draft by default, send only on explicit user instruction.
 - Run `swift test`, release build, CLI help/parsing/output smoke checks without credentials.
 - Commit, run two independent implementation reviewers, fix every realistic code issue and meaningful documentation issue, repeat code review after fixes, retire reviewers.
