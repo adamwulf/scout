@@ -39,9 +39,10 @@ enum DotEnvParser {
         let text = raw.drop(while: isBlank)
         guard let quote = text.first else { return "" }
         guard quote == "\"" || quote == "'" else {
-            // An unquoted value ends at a `#` that follows whitespace.
+            // An unquoted value ends at a `#` that follows whitespace, including the blanks stripped after `=`,
+            // so `KEY= # note` is empty while `KEY=#x` keeps `#x`.
             var end = text.endIndex
-            var previousWasBlank = false
+            var previousWasBlank = text.startIndex != raw.startIndex
             for index in text.indices {
                 if text[index] == "#" && previousWasBlank {
                     end = index

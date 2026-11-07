@@ -69,6 +69,21 @@ final class ScoutConfigurationTests: XCTestCase {
         XCTAssertEqual(entries.count, 4)
     }
 
+    func testCommentAfterBlankFollowingEqualsLeavesValueEmpty() throws {
+        let text = "SCOUT_ACCESS_TOKEN= # optional\n"
+            + "SCOUT_APP_SECRET=\t# optional\n"
+            + "SCOUT_APP_ID=#literal\n"
+        let entries = try DotEnvParser.parse(text, keys: ScoutConfiguration.keys, source: "fixture.env")
+        XCTAssertEqual(entries["SCOUT_ACCESS_TOKEN"]?.value, "")
+        XCTAssertEqual(entries["SCOUT_APP_SECRET"]?.value, "")
+        XCTAssertEqual(entries["SCOUT_APP_ID"]?.value, "#literal")
+
+        let file = try write("SCOUT_APP_ID=file-id\nSCOUT_APP_SECRET=file-secret\nSCOUT_ACCESS_TOKEN= # optional\n", to: "a/.env")
+        let configuration = try load(from: file.deletingLastPathComponent())
+        XCTAssertNil(configuration.accessToken)
+        XCTAssertEqual(try configuration.authentication(), .clientCredentials(appID: "file-id", appSecret: "file-secret"))
+    }
+
     func testMalformedRelevantSettingsAreRejectedWithoutShowingValues() throws {
         let start = try directory("project")
         let cases = [

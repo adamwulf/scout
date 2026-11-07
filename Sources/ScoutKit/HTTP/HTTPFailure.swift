@@ -132,8 +132,9 @@ enum HTTPFailure {
         !segment.isEmpty && segment != "." && segment != ".." && segment.utf8.allSatisfy(PercentEncoding.isUnreserved)
     }
 
-    /// Help Scout error JSON: `message`, `_embedded.errors[].path/message` and `logRef`. Rejected values are
-    /// skipped because they can contain customer text.
+    /// Help Scout error JSON: `message`, `_embedded.errors[].path/message` and `logRef`, as documented at
+    /// https://developer.helpscout.com/mailbox-api/overview/errors/. Rejected values are skipped because they can
+    /// contain customer text.
     static func serverDetail(_ body: Data, redactor: SecretRedactor) -> String? {
         guard !body.isEmpty, let json = try? JSONDecoder().decode(JSONValue.self, from: body), json.object != nil
         else { return nil }
