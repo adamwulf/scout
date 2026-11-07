@@ -45,14 +45,15 @@ public struct ScoutConfiguration: Sendable, Equatable {
         envFile: String?,
         environment: [String: String],
         startingDirectory: URL,
-        searchBoundary: URL?
+        searchBoundary: URL?,
+        discoveryFileName: String = ".env"
     ) throws -> ScoutConfiguration {
         let start = startingDirectory.standardizedFileURL
         let file: URL?
         if let envFile {
             file = try explicitFile(envFile, relativeTo: start)
         } else {
-            file = discoverFile(from: start, boundary: searchBoundary?.standardizedFileURL)
+            file = discoverFile(from: start, boundary: searchBoundary?.standardizedFileURL, fileName: discoveryFileName)
         }
 
         var settings: [String: Setting] = [:]
@@ -118,10 +119,10 @@ public struct ScoutConfiguration: Sendable, Equatable {
         return url
     }
 
-    private static func discoverFile(from start: URL, boundary: URL?) -> URL? {
+    private static func discoverFile(from start: URL, boundary: URL?, fileName: String) -> URL? {
         var directory = start
         while true {
-            let candidate = directory.appendingPathComponent(".env")
+            let candidate = directory.appendingPathComponent(fileName)
             if isRegularFile(candidate) { return candidate }
             let parent = directory.deletingLastPathComponent().standardizedFileURL
             if directory.path == boundary?.path || directory.path == "/" || parent.path == directory.path { return nil }

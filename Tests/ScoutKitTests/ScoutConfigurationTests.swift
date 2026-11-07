@@ -35,7 +35,7 @@ final class ScoutConfigurationTests: XCTestCase {
         environment: [String: String] = [:],
         from start: URL
     ) throws -> ScoutConfiguration {
-        try ScoutConfiguration.load(envFile: envFile, environment: environment, startingDirectory: start, searchBoundary: root)
+        try ScoutConfiguration.load(envFile: envFile, environment: environment, startingDirectory: start, searchBoundary: root, discoveryFileName: "scout-fixture.env")
     }
 
     private func configurationError(_ operation: () throws -> ScoutConfiguration) -> String? {
@@ -78,7 +78,7 @@ final class ScoutConfigurationTests: XCTestCase {
         XCTAssertEqual(entries["SCOUT_APP_SECRET"]?.value, "")
         XCTAssertEqual(entries["SCOUT_APP_ID"]?.value, "#literal")
 
-        let file = try write("SCOUT_APP_ID=file-id\nSCOUT_APP_SECRET=file-secret\nSCOUT_ACCESS_TOKEN= # optional\n", to: "a/.env")
+        let file = try write("SCOUT_APP_ID=file-id\nSCOUT_APP_SECRET=file-secret\nSCOUT_ACCESS_TOKEN= # optional\n", to: "a/scout-fixture.env")
         let configuration = try load(from: file.deletingLastPathComponent())
         XCTAssertNil(configuration.accessToken)
         XCTAssertEqual(try configuration.authentication(), .clientCredentials(appID: "file-id", appSecret: "file-secret"))
@@ -95,22 +95,22 @@ final class ScoutConfigurationTests: XCTestCase {
             ("SCOUT_INBOX_ID=-5\n", "positive Help Scout inbox ID"),
         ]
         for (text, expected) in cases {
-            let file = try write(text, to: "project/.env")
+            let file = try write(text, to: "project/scout-fixture.env")
             let message = configurationError { try load(from: start) }
             XCTAssertEqual(message?.contains(expected), true, message ?? text)
             XCTAssertEqual(message?.contains(file.path), true, message ?? text)
             XCTAssertEqual(message?.contains("hidden"), false, message ?? text)
         }
 
-        try FileManager.default.removeItem(at: start.appendingPathComponent(".env"))
+        try FileManager.default.removeItem(at: start.appendingPathComponent("scout-fixture.env"))
         let message = configurationError { try load(environment: ["SCOUT_ACCESS_TOKEN": "hidden token\n"], from: start) }
         XCTAssertEqual(message?.contains("SCOUT_ACCESS_TOKEN from the process environment"), true, message ?? "")
         XCTAssertEqual(message?.contains("hidden"), false, message ?? "")
     }
 
     func testDiscoversNearestEnvFileAndStopsThereEvenWithoutScoutSettings() throws {
-        _ = try write("SCOUT_APP_ID=outer-id\nSCOUT_APP_SECRET=outer-secret\n", to: ".env")
-        let nearest = try write("OTHER_TOOL_SETTING=1\n", to: "project/.env")
+        _ = try write("SCOUT_APP_ID=outer-id\nSCOUT_APP_SECRET=outer-secret\n", to: "scout-fixture.env")
+        let nearest = try write("OTHER_TOOL_SETTING=1\n", to: "project/scout-fixture.env")
         let start = try directory("project/Sources/deep")
 
         let configuration = try load(from: start)
@@ -126,7 +126,7 @@ final class ScoutConfigurationTests: XCTestCase {
     }
 
     func testNonemptyEnvironmentValuesOverrideFileValues() throws {
-        _ = try write("SCOUT_APP_ID=file-id\nSCOUT_APP_SECRET=file-secret\nSCOUT_INBOX_ID=5\n", to: "project/.env")
+        _ = try write("SCOUT_APP_ID=file-id\nSCOUT_APP_SECRET=file-secret\nSCOUT_INBOX_ID=5\n", to: "project/scout-fixture.env")
         let start = try directory("project")
 
         let configuration = try load(
@@ -142,17 +142,17 @@ final class ScoutConfigurationTests: XCTestCase {
     }
 
     func testAccessTokenFromEitherSourceWinsOverAppCredentials() throws {
-        _ = try write("SCOUT_APP_ID=file-id\nSCOUT_APP_SECRET=file-secret\nSCOUT_ACCESS_TOKEN=file-token\n", to: "a/.env")
+        _ = try write("SCOUT_APP_ID=file-id\nSCOUT_APP_SECRET=file-secret\nSCOUT_ACCESS_TOKEN=file-token\n", to: "a/scout-fixture.env")
         let fromFile = try load(from: try directory("a"))
         XCTAssertEqual(try fromFile.authentication(), .accessToken("file-token"))
 
-        _ = try write("SCOUT_APP_ID=file-id\nSCOUT_APP_SECRET=file-secret\n", to: "b/.env")
+        _ = try write("SCOUT_APP_ID=file-id\nSCOUT_APP_SECRET=file-secret\n", to: "b/scout-fixture.env")
         let fromEnvironment = try load(environment: ["SCOUT_ACCESS_TOKEN": "env-token"], from: try directory("b"))
         XCTAssertEqual(try fromEnvironment.authentication(), .accessToken("env-token"))
     }
 
     func testExplicitEnvFileResolvesFromStartingDirectoryAndSkipsDiscovery() throws {
-        _ = try write("SCOUT_APP_ID=discovered\n", to: "elsewhere/.env")
+        _ = try write("SCOUT_APP_ID=discovered\n", to: "elsewhere/scout-fixture.env")
         let file = try write("SCOUT_APP_ID=explicit-id\nSCOUT_APP_SECRET=explicit-secret\n", to: "config/scout-fixture.env")
         let start = try directory("elsewhere")
 
