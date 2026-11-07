@@ -3,5 +3,22 @@ import ScoutKit
 
 @main
 struct Scout: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "scout", abstract: "Work with Help Scout inboxes.")
+    static let configuration = CommandConfiguration(
+        commandName: "scout", abstract: "Work with Help Scout inboxes.", version: "0.1.0",
+        subcommands: [Auth.self, Inboxes.self, ListConversations.self, Show.self, Search.self,
+                      Customers.self, Customer.self, Templates.self, Template.self, Draft.self, Send.self, ReadOnly.self]
+    )
 }
+
+protocol ReadOnlyCommand: AsyncParsableCommand {}
+
+struct ReadOnly: AsyncParsableCommand {
+    static let commands: [any ReadOnlyCommand.Type] = [Inboxes.self, ListConversations.self, Show.self,
+        Search.self, Customers.self, Customer.self, Templates.self, Template.self, ReadOnlyAuth.self]
+    static let configuration = CommandConfiguration(commandName: "ro", abstract: "Read Help Scout content (auth token cache may update).", subcommands: commands)
+}
+
+extension ListFormat: ExpressibleByArgument {}
+extension DetailFormat: ExpressibleByArgument {}
+extension ConversationStatus: ExpressibleByArgument {}
+extension ReplyStatus: ExpressibleByArgument {}
