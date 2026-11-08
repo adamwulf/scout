@@ -39,7 +39,10 @@ Creation uses `POST /v2/conversations/{id}/reply` with `draft: true`, reusing th
 
 Update uses `PATCH /v2/conversations/{id}/threads/{threadId}` with the JSON object `{"op":"replace","path":"/text","value":"..."}`. Only the body changes; do not reconstruct attachments or recipients. Thread editing requires an administrator or enabled thread editing.[^3]
 
-Sending uses the existing thread rather than copying its body to a new reply. The documented publish API is for scheduled threads. For an already scheduled draft, publish it directly with `PATCH .../schedule`, `{"op":"replace","path":"/state","value":"published"}`. For an unscheduled draft, schedule it first with `PUT .../schedule` and then immediately publish it. Scheduling requires a future ISO 8601 time and `unscheduleOnCustomerReply`; it optionally accepts `sendAsCreator`.[^4][^5]
+Sending must use the existing draft rather than copying its body to a new reply. There are two documented publication operations to distinguish:
+
+- **Conversation publication:** `PATCH /v2/conversations/{id}` with `{"op":"replace","path":"/draft","value":false}` is documented as publishing a draft.[^8] This operation has no thread selector. Creation documentation separately describes draft conversations.[^9] The sources reviewed do not establish whether conversation publication sends a selected reply draft inside an already published conversation, or how it behaves with multiple drafts. Do not claim it requires scheduling, and do not implement this as selected-thread publication without resolving those semantics. A live test would send mail and requires Adam to select a test conversation and authorize it.
+- **Thread schedule publication:** an already scheduled draft can be published with `PATCH .../schedule`, `{"op":"replace","path":"/state","value":"published"}`. A proposed fallback for an unscheduled reply draft is to schedule it with `PUT .../schedule` and then immediately publish it. Scheduling requires a future ISO 8601 time and `unscheduleOnCustomerReply`; it optionally accepts `sendAsCreator`.[^4][^5] This fallback remains pending Adam's decision because of the partial-failure behavior below.
 
 Proposed unscheduled-send choices, pending Adam's decision: a time 24 hours in the future, `unscheduleOnCustomerReply: true`, and `sendAsCreator: false` (the API default, sending as the acting identity). Help Scout describes scheduled replies as sent by the user who schedules them.[^7] Inject a clock for deterministic tests. The future timestamp provides time to inspect a partial failure; it is not a guarantee against a later automatic send. Never silently schedule near-now as a substitute for publishing. A process interruption between scheduling and publication can leave a queued send without an error message. This two-request contract must be explained in command help and documentation, not only on caught errors.
 
@@ -50,6 +53,8 @@ If scheduling or publication fails or times out, stop without automatic retry, r
 ## Plan review outcome — 2026-11-08
 
 Sol reviewer `agent-86c51851` requested changes. Independent research likewise found no documented draft-thread deletion endpoint. Decisions pending from Adam: defer deletion (recommended) or reserve `--delete` with an explicit unsupported-operation error; accept the documented two-step send contract or defer unscheduled sends. Selection types, HTML-empty validation, partial-send diagnostics, and limits on status guarantees are clarified above. Implementation remains pending resolution and plan re-review by this same reviewer.
+
+Reviewer follow-up supplied by Adam identified the conversation-level `/draft: false` publication operation. The earlier claim that scheduling was always necessary was too broad. Investigate this direct operation before settling on the two-step send path; its applicability to reply drafts and explicit thread selection remains unresolved.
 
 ## Implementation shape
 
@@ -86,3 +91,5 @@ No general scheduling command, separate status-change requests on existing-draft
 [^5]: [Help Scout: Publish thread schedule](https://developer.helpscout.com/mailbox-api/endpoints/conversations/threads/schedule/publish/)
 [^6]: [Help Scout: Delete thread schedule](https://developer.helpscout.com/mailbox-api/endpoints/conversations/threads/schedule/delete/)
 [^7]: [Help Scout: Schedule a reply to send later](https://docs.helpscout.com/article/1577-schedule-a-reply-to-send-later)
+[^8]: [Help Scout: Update conversation](https://developer.helpscout.com/mailbox-api/endpoints/conversations/update/)
+[^9]: [Help Scout: Create conversation](https://developer.helpscout.com/mailbox-api/endpoints/conversations/create/)
