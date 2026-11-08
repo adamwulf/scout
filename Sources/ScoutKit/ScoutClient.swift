@@ -30,6 +30,12 @@ public struct StatusReceipt: Codable, Sendable {
     public let status: ReplyStatus
 }
 
+public struct TemplateReceipt: Codable, Sendable {
+    public let inboxID: Int
+    public let templateID: Int?
+    public let operation: String
+}
+
 /// Library facade for the supported workflows. Lists return a complete server page.
 public struct ScoutClient: Sendable {
     private let http: ScoutHTTPClient
@@ -77,9 +83,9 @@ public struct ScoutClient: Sendable {
         return try await get("/v2/customers/\(id)")
     }
 
-    public func templates(inbox: Int) async throws -> ResourcePage {
+    public func templates(inbox: Int, includeChat: Bool = false) async throws -> ResourcePage {
         try Self.positive(inbox, name: "Inbox ID")
-        let value = try await get("/v2/mailboxes/\(inbox)/saved-replies")
+        let value = try await get("/v2/mailboxes/\(inbox)/saved-replies", query: includeChat ? ["includeChatReplies": "true"] : [:])
         guard let items = value.array else { throw ScoutError.decoding("Help Scout saved replies response is not an array.") }
         return ResourcePage(items: items)
     }
@@ -88,6 +94,54 @@ public struct ScoutClient: Sendable {
         try Self.positive(id, name: "Template ID")
         try Self.positive(inbox, name: "Inbox ID")
         return try await get("/v2/mailboxes/\(inbox)/saved-replies/\(id)")
+    }
+
+    public func createTemplate(inbox: Int, name: String, text: String? = nil, chatText: String? = nil) async throws -> TemplateReceipt {
+        try Self.positive(inbox, name: "Inbox ID")
+        let fields = try Self.templateFields(name: name, text: text, chatText: chatText)
+        guard text != nil || chatText != nil else {
+            throw ScoutError.invalidInput("Provide an email body or --chat-text for the saved reply.")
+        }
+        let response = try await http.request(method: "POST", path: "/v2/mailboxes/\(inbox)/saved-replies", body: .object(fields))
+        let id = response.header("Resource-ID").flatMap(Int.init).flatMap { $0 > 0 ? $0 : nil }
+        return TemplateReceipt(inboxID: inbox, templateID: id, operation: "created")
+    }
+
+    /// PUT requires a name. Read the current reply to preserve fields omitted by the caller.
+    public func updateTemplate(_ id: Int, inbox: Int, name: String? = nil, text: String? = nil, chatText: String? = nil) async throws -> TemplateReceipt {
+        let changes = try Self.templateFields(name: name, text: text, chatText: chatText)
+        guard !changes.isEmpty else { throw ScoutError.invalidInput("Provide --name, an email body, or --chat-text to update.") }
+        let current = try await template(id, inbox: inbox)
+        var fields: [String: JSONValue] = [:]
+        for key in ["name", "text", "chatText"] {
+            if let value = current[key].string { fields[key] = .string(value) }
+        }
+        fields.merge(changes) { _, new in new }
+        guard let name = fields["name"]?.string, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ScoutError.decoding("Saved reply has no name. Provide --name to update it.")
+        }
+        _ = try await http.request(method: "PUT", path: "/v2/mailboxes/\(inbox)/saved-replies/\(id)", body: .object(fields))
+        return TemplateReceipt(inboxID: inbox, templateID: id, operation: "updated")
+    }
+
+    public func deleteTemplate(_ id: Int, inbox: Int) async throws -> TemplateReceipt {
+        try Self.positive(id, name: "Template ID")
+        try Self.positive(inbox, name: "Inbox ID")
+        _ = try await http.request(method: "DELETE", path: "/v2/mailboxes/\(inbox)/saved-replies/\(id)")
+        return TemplateReceipt(inboxID: inbox, templateID: id, operation: "deleted")
+    }
+
+    private static func templateFields(name: String?, text: String?, chatText: String?) throws -> [String: JSONValue] {
+        var fields: [String: JSONValue] = [:]
+        for (key, value) in [("name", name), ("text", text), ("chatText", chatText)] {
+            if let value {
+                guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw ScoutError.invalidInput("Saved reply \(key) cannot be empty.")
+                }
+                fields[key] = .string(value)
+            }
+        }
+        return fields
     }
 
     public func show(_ id: Int) async throws -> ConversationView {

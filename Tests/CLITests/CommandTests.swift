@@ -36,6 +36,44 @@ final class CommandTests: XCTestCase {
         }
     }
 
+    func testTemplateReadsAreIdenticalAtRootAndUnderRO() throws {
+        for prefix: [String] in [[], ["ro"]] {
+            let list = try XCTUnwrap(Scout.parseAsRoot(prefix + ["templates", "--inbox", "7", "--include-chat", "--format", "json"]) as? Templates)
+            XCTAssertEqual(list.inbox, 7)
+            XCTAssertTrue(list.includeChat)
+            XCTAssertEqual(list.output.format, .json)
+            let detail = try XCTUnwrap(Scout.parseAsRoot(prefix + ["template", "10", "--inbox", "7"]) as? Template)
+            XCTAssertEqual(detail.id, 10)
+            XCTAssertEqual(detail.inbox, 7)
+            XCTAssertEqual(detail.format, .raw)
+        }
+    }
+
+    func testTemplateWritesParseOnlyAtRoot() throws {
+        for arguments in [
+            ["template-create", "--name", "Greeting", "--body", "Hi {%customer.firstName%}"],
+            ["template-create", "--name", "Chat", "--chat-text", "Hi"],
+            ["template-update", "10", "--name", "Renamed"],
+            ["template-update", "10", "--body-file", "-", "--html"],
+            ["template-delete", "10"]
+        ] {
+            _ = try Scout.parseAsRoot(arguments + ["--inbox", "7"])
+            XCTAssertThrowsError(try Scout.parseAsRoot(["ro"] + arguments))
+        }
+        let create = try XCTUnwrap(Scout.parseAsRoot(["template-create", "--name", "Greeting", "--body", "<p>Hi {%customer.firstName%}</p>", "--html"]) as? TemplateCreate)
+        XCTAssertEqual(try create.fields.emailText(), "<p>Hi {%customer.firstName%}</p>")
+        for arguments in [
+            ["template-create", "--body", "Hi"], ["template-create", "--name", "Hi"],
+            ["template-create", "--name", " ", "--body", "Hi"],
+            ["template-update", "10"], ["template-update", "10", "--html", "--name", "Hi"],
+            ["template-update", "10", "--body", "Hi", "--body-file", "body.txt"],
+            ["template-update", "10", "--body", " "], ["template-update", "0", "--name", "Hi"],
+            ["template-delete", "0"], ["template-delete", "10", "--inbox", "0"]
+        ] {
+            XCTAssertThrowsError(try Scout.parseAsRoot(arguments), "\(arguments)")
+        }
+    }
+
     func testReplyOptionsValidateBeforeRunning() throws {
         XCTAssertThrowsError(try Scout.parseAsRoot(["send", "12"]))
         XCTAssertThrowsError(try Scout.parseAsRoot(["draft", "12", "--body", "Hi", "--template", "1"]))

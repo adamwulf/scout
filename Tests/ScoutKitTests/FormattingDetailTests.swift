@@ -74,7 +74,31 @@ final class FormattingDetailTests: XCTestCase {
 
         Thanks & regards
 
+        ## Chat
+
+        Hi there,
+        chat version
+
         """)
+    }
+
+    func testChatOnlyTemplateMarkdownPreservesPlainTextAndRawExplainsFormat() throws {
+        let chat: JSONValue = .object(["id": .integer(10), "name": .string("Chat"), "text": .null,
+                                       "chatText": .string("Use <example> & keep it\nplain text")])
+        XCTAssertEqual(try OutputFormatter.detail(chat, kind: .template, format: .markdown), """
+        # Chat
+
+        - ID: 10
+
+        ## Chat
+
+        Use <example> & keep it
+        plain text
+
+        """)
+        XCTAssertThrowsError(try OutputFormatter.detail(chat, kind: .template, format: .raw)) { error in
+            XCTAssertTrue(error.localizedDescription.contains("--format json or --format md"))
+        }
     }
 
     func testInboxMarkdown() throws {

@@ -35,7 +35,7 @@ public enum OutputFormatter {
         case .raw:
             guard kind == .template else { throw rawUnavailable }
             guard let text = value["text"].string else {
-                throw ScoutError.decoding("Help Scout saved reply response is missing its email text.")
+                throw ScoutError.decoding("This saved reply has no email text for raw export. Use --format json or --format md to inspect chat content.")
             }
             return text.isEmpty || text.unicodeScalars.last == "\n" ? text : text + "\n"
         case .markdown:

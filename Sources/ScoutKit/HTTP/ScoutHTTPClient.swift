@@ -86,7 +86,7 @@ public actor ScoutHTTPClient {
         } catch {
             var message = "Network request failed for \(method) \(path): \(error.localizedDescription)"
             if method != "GET" {
-                message += " The request may have reached Help Scout; inspect the conversation before retrying."
+                message += " The request may have reached Help Scout; inspect \(HTTPFailure.writeTarget(path)) before retrying."
             }
             throw ScoutError.transport(redactor.redact(message))
         }

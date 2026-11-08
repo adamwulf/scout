@@ -46,6 +46,12 @@ public enum ReplyBody {
                 "The reply body contains an unresolved Help Scout variable\(variableMarker(in: text, from: open)). Replace variables with literal text before drafting or sending, for example: scout template ID > reply.html, edit it, then use --body-file reply.html --html."
             )
         }
+        return try prepareTemplate(text, html: html)
+    }
+
+    /// Saved replies may contain Help Scout variables; resolve them only when drafting or sending.
+    public static func prepareTemplate(_ text: String, html: Bool) throws -> String {
+        guard !isBlank(text) else { throw ScoutError.invalidInput("The reply body is empty.") }
         return html ? text : escapedPlainText(text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 

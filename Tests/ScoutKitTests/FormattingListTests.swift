@@ -152,6 +152,19 @@ final class FormattingListTests: XCTestCase {
         }
     }
 
+    func testTemplateTableIncludesChatPreviewWhenReturned() throws {
+        let templates = ResourcePage(items: [
+            .object(["id": .integer(9), "name": .string("Both"), "preview": .string("Email"), "chatPreview": .string("Chat\npreview")]),
+            .object(["id": .integer(10), "name": .string("Chat"), "preview": .null, "chatPreview": .string("Chat only")])
+        ])
+        XCTAssertEqual(try OutputFormatter.list(templates, kind: .template, format: .table), """
+        ID  NAME  PREVIEW  CHAT PREVIEW
+        9   Both  Email    Chat preview
+        10  Chat           Chat only
+
+        """)
+    }
+
     func testTableAlignsWideUnicodeAndHasNoTrailingSpaces() throws {
         let page = ResourcePage(items: [
             .object(["id": .integer(1), "name": .string("李小龙"), "email": .string("li@example.com")]),
