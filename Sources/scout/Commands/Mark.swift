@@ -10,9 +10,7 @@ struct Mark: AsyncParsableCommand {
     mutating func validate() throws { try ScoutClient.positive(id, name: "Conversation ID") }
 
     func run() async throws {
-        try await connection.context().client.mark(conversation: id, status: status)
-        CLI.output(try OutputFormatter.detail(.object([
-            "conversationID": .integer(id), "status": .string(status.rawValue)
-        ]), kind: .conversation, format: .json))
+        let receipt = try await connection.context().client.mark(conversation: id, status: status)
+        CLI.output(try OutputFormatter.receipt(receipt))
     }
 }

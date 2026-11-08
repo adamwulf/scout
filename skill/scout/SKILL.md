@@ -53,7 +53,7 @@ Drafts preserve the conversation status. `send` creates a new reply immediately 
 
 ## Mark conversation status
 
-When asked to change a conversation status, use `mark` without sending a reply:
+Use `mark` only for user-authorized status changes. First read the conversation with `scout ro show <id>` and verify the customer and context. Change the status without sending a reply:
 
 ```sh
 scout mark spam 987654

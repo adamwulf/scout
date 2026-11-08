@@ -5,7 +5,7 @@ public enum ConversationStatus: String, CaseIterable, Sendable {
 }
 
 /// Writable conversation statuses, shared by replies and standalone status changes.
-public enum ReplyStatus: String, CaseIterable, Sendable {
+public enum ReplyStatus: String, CaseIterable, Codable, Sendable {
     case active, pending, closed, spam
 }
 
@@ -23,6 +23,11 @@ public struct ReplyReceipt: Codable, Sendable {
     public let conversationID: Int
     public let threadID: Int?
     public let draft: Bool
+}
+
+public struct StatusReceipt: Codable, Sendable {
+    public let conversationID: Int
+    public let status: ReplyStatus
 }
 
 /// Library facade for the supported workflows. Lists return a complete server page.
@@ -107,11 +112,13 @@ public struct ScoutClient: Sendable {
     }
 
     /// Changes the whole conversation's status without creating or sending a reply.
-    public func mark(conversation id: Int, status: ReplyStatus) async throws {
+    @discardableResult
+    public func mark(conversation id: Int, status: ReplyStatus) async throws -> StatusReceipt {
         _ = try await conversation(id)
         _ = try await http.request(method: "PATCH", path: "/v2/conversations/\(id)", body: .object([
             "op": .string("replace"), "path": .string("/status"), "value": .string(status.rawValue)
         ]))
+        return StatusReceipt(conversationID: id, status: status)
     }
 
     public static func positive(_ value: Int, name: String) throws {

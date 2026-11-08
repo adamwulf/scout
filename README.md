@@ -152,7 +152,7 @@ The library never prints. `ScoutHTTPClient` accepts an injected transport, token
 
 This version supports auth, inboxes, conversation read/search/status changes, customer read/filter, saved-reply read/use, draft creation and new reply sending. Attachments, customer editing, new outbound conversations, local template storage, browser OAuth, scheduling, publishing existing drafts and multiple accounts are deferred. The implementation plan and API research are in [PLAN.md](PLAN.md).
 
-Tests use fake HTTP responses and isolated configuration fixtures. **No live Help Scout API call or real message send has been used to validate this release.** First try `auth status`, `ro inboxes`, `ro list`, and `ro show` with your credentials. Verify drafting and status preservation on an explicitly chosen test conversation before regular use.
+Tests use fake HTTP responses and isolated configuration fixtures. **No live Help Scout API call or real message send has been used to validate this release.** First try `auth status`, `ro inboxes`, `ro list`, and `ro show` with your credentials. Verify drafting and status preservation on an explicitly chosen test conversation before regular use. On that test conversation, try `mark pending`, `mark closed`, `mark spam`, and `mark active`, each followed by its API ID; confirm each status with `ro show`, then restore its original status with `mark <original-status> <id>`.
 
 [^1]: [Help Scout authentication](https://developer.helpscout.com/mailbox-api/overview/authentication/)
 [^2]: [Create reply thread](https://developer.helpscout.com/mailbox-api/endpoints/conversations/threads/reply/)

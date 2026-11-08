@@ -131,7 +131,9 @@ final class ScoutClientTests: XCTestCase {
     func testMarkPatchesOnlyStatusAndAcceptsEmptySuccess() async throws {
         for status in ReplyStatus.allCases {
             let (client, transport) = client([.json(200, conversation), .json(204, "")])
-            try await client.mark(conversation: 12, status: status)
+            let receipt = try await client.mark(conversation: 12, status: status)
+            XCTAssertEqual(receipt.conversationID, 12)
+            XCTAssertEqual(receipt.status, status)
             let requests = await transport.requests
             XCTAssertEqual(requests.map(\.method), ["GET", "PATCH"])
             XCTAssertEqual(requests.map(\.url.path), ["/v3/conversations/12", "/v2/conversations/12"])
