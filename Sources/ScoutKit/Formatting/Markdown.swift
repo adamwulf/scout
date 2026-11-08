@@ -15,15 +15,18 @@ extension OutputFormatter {
         }
 
         /// `attachmentPaths` maps attachment IDs to downloaded files, which are linked after the thread body;
-        /// images are embedded.
-        static func conversation(_ value: JSONValue, threads: [JSONValue], attachmentPaths: [Int: String] = [:]) -> String {
+        /// images are embedded. `inlineImagePaths` maps inline image `src` URLs to downloaded files, which are
+        /// embedded where the body shows them instead of the CDN URL.
+        static func conversation(_ value: JSONValue, threads: [JSONValue], attachmentPaths: [Int: String] = [:],
+                                 inlineImagePaths: [String: String] = [:]) -> String {
             var document = Document()
             conversationHeader(value, into: &document)
             let sorted = sortedOldestFirst(threads)
             document.heading(2, sorted.isEmpty ? "Threads" : "Threads (\(sorted.count), oldest first)")
             if sorted.isEmpty { document.paragraph("No threads.") }
             for (offset, thread) in sorted.enumerated() {
-                self.thread(thread, number: offset + 1, attachmentPaths: attachmentPaths, into: &document)
+                self.thread(thread, number: offset + 1, attachmentPaths: attachmentPaths, inlineImagePaths: inlineImagePaths,
+                            into: &document)
             }
             return document.text
         }
@@ -131,12 +134,14 @@ extension OutputFormatter {
             }
         }
 
-        private static func thread(_ thread: JSONValue, number: Int, attachmentPaths: [Int: String], into document: inout Document) {
+        private static func thread(_ thread: JSONValue, number: Int, attachmentPaths: [Int: String],
+                                   inlineImagePaths: [String: String], into document: inout Document) {
             document.heading(3, "\(number). \(threadTitle(thread))")
             let author = thread["createdBy"]
             let authorLabel = personLabel(author).map { label in
                 author["type"].string.map { "\(label) (\($0))" } ?? label
             }
+            let body = HTMLText.render(thread["body"].string ?? "", inlineImagePaths: inlineImagePaths)
             let attachmentList = thread["_embedded"]["attachments"].array ?? []
             let attachments = attachmentList.compactMap { attachment -> String? in
                 guard let name = attachment["filename"].string else { return nil }
@@ -144,7 +149,7 @@ extension OutputFormatter {
                                attachment["state"].string == "virus" ? "virus detected" : nil]
                     .compactMap { $0 }
                 return details.isEmpty ? name : "\(name) (\(details.joined(separator: ", ")))"
-            }
+            } + body.inlineImages.map { "\($0.filename) (inline image)" }
             let actionText = thread["action"]["text"].string
             document.fields([
                 ("Thread ID", scalarText(thread["id"])),
@@ -160,9 +165,8 @@ extension OutputFormatter {
                 ("Scheduled for", thread["scheduled"]["scheduledFor"].string),
                 ("Attachments", attachments.isEmpty ? nil : attachments.joined(separator: ", ")),
             ])
-            let body = HTMLText.plainText(thread["body"].string ?? "")
-            if !body.isEmpty {
-                document.paragraph(body)
+            if !body.text.isEmpty {
+                document.paragraph(body.text)
             } else if actionText?.isEmpty ?? true {
                 document.paragraph("(no body)")
             }
@@ -172,16 +176,22 @@ extension OutputFormatter {
             }
         }
 
-        /// `![name](path)` for images and `[name](path)` for other files. The label escapes link brackets;
-        /// a path with spaces, parentheses or angle brackets uses the `<...>` destination form.
+        /// `![name](path)` for images and `[name](path)` for other files.
         static func attachmentLink(_ attachment: JSONValue, path: String) -> String {
-            let name = TerminalText.singleLine(attachment["filename"].string ?? "")
-            let label = escaped(name.isEmpty ? "attachment" : name, ["\\", "[", "]"])
-            var destination = escaped(path, ["\\"])
+            let isImage = attachment["mimeType"].string?.lowercased().hasPrefix("image/") ?? false
+            return link(label: attachment["filename"].string ?? "", fallback: "attachment", destination: path, isImage: isImage)
+        }
+
+        /// `![label](destination)` when `isImage`, otherwise `[label](destination)`. The label is one line with link
+        /// brackets escaped, or `fallback` when empty; a destination with spaces, parentheses or angle brackets uses
+        /// the `<...>` form.
+        static func link(label: String, fallback: String, destination: String, isImage: Bool) -> String {
+            let name = TerminalText.singleLine(label)
+            let label = escaped(name.isEmpty ? fallback : name, ["\\", "[", "]"])
+            var destination = escaped(destination, ["\\"])
             if destination.unicodeScalars.contains(where: { $0.properties.isWhitespace || "()<>".unicodeScalars.contains($0) }) {
                 destination = "<" + escaped(destination, ["<", ">"]) + ">"
             }
-            let isImage = attachment["mimeType"].string?.lowercased().hasPrefix("image/") ?? false
             return (isImage ? "!" : "") + "[\(label)](\(destination))"
         }
 

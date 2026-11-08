@@ -46,15 +46,17 @@ public enum OutputFormatter {
     /// Renders a conversation with its threads. JSON keeps the full API objects under
     /// `conversation` and `threads`; markdown lists threads oldest first with labeled metadata, and links
     /// each downloaded attachment in `attachmentPaths` (by attachment ID) after its thread body, embedding images.
+    /// Help Scout inline images are embedded where the body shows them, from `inlineImagePaths` (by `src` URL)
+    /// when downloaded and otherwise from Help Scout's CDN; other images are never linked or loaded.
     public static func conversation(_ value: JSONValue, threads: [JSONValue], format: DetailFormat,
-                                    attachmentPaths: [Int: String] = [:]) throws -> String {
+                                    attachmentPaths: [Int: String] = [:], inlineImagePaths: [String: String] = [:]) throws -> String {
         switch format {
         case .json:
             return try prettyJSON(.object(["conversation": value, "threads": .array(threads)]))
         case .raw:
             throw rawUnavailable
         case .markdown:
-            return Markdown.conversation(value, threads: threads, attachmentPaths: attachmentPaths)
+            return Markdown.conversation(value, threads: threads, attachmentPaths: attachmentPaths, inlineImagePaths: inlineImagePaths)
         }
     }
 

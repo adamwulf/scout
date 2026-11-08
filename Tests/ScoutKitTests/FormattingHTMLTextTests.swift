@@ -22,7 +22,7 @@ final class FormattingHTMLTextTests: XCTestCase {
         XCTAssertEqual(text(#"<p>Read <a href='https://x.com'> spaced </a> now</p>"#), "Read [spaced](https://x.com) now")
         XCTAssertEqual(text(#"<a href="https://x.com">https://x.com</a>"#), "https://x.com")
         XCTAssertEqual(text(#"<a href="MAILTO:a@b.com">a@b.com</a>"#), "a@b.com")
-        XCTAssertEqual(text(#"<a href=https://x.com/img><img src="x.png" alt="logo"></a>"#), "https://x.com/img")
+        XCTAssertEqual(text(#"<a href=https://x.com/img><img src="x.png" alt="logo"></a>"#), "[[image not shown]](https://x.com/img)")
         XCTAssertEqual(text(##"<a href="javascript:alert(1)">click</a> <a>bare</a> <a href="#top">top</a>"##), "click bare top")
     }
 
@@ -85,6 +85,82 @@ final class FormattingHTMLTextTests: XCTestCase {
 
     func testControlCharactersFromMarkupAndEntitiesAreRemoved() {
         XCTAssertEqual(text("<p>Hi&#27;[31m red\u{7} &#x202E;txt</p>"), "Hi[31m red txt")
+    }
+
+    // MARK: Images
+
+    private let canary = InlineImageTests.canaryImage
+    private let appleMail = InlineImageTests.appleMailImage
+    private let canaryName = "6ED8F9BB-BF20-4EF1-930F-E829E7355D47_4_5005_c.jpeg"
+    private let appleMailName = "CleanShot-2026-10-15-at-14-09-13-2x.png"
+
+    /// Canary Mail: a read-receipt pixel, then the same pasted image twice.
+    private var canaryBody: String {
+        """
+        <div>The export button does nothing.</div>
+        <img id="ex-CE46" alt="" width="0" height="0" src="https://receipts.canarymail.io/track/D98D.png">
+        <img src="\(canary)" style="max-width:90vw;width:179px;" alt="\(canary)">
+        <div>Same screenshot again:</div>
+        <img src="\(canary)" style="max-width:90vw;width:179px;" alt="\(canary)">
+        --<br>Sent from Eason
+        """
+    }
+
+    /// Apple Mail: the alt text is the original file name, which differs from the URL's.
+    private var appleMailBody: String {
+        #"<div>See screenshot:</div><div><img alt="CleanShot 2026-10-15 at 14.09.13@2x.png" width="640" src="\#(appleMail)"></div>"#
+    }
+
+    func testHelpScoutInlineImagesRenderInPlaceOnceWithoutTrackingPixels() throws {
+        let rendered = OutputFormatter.HTMLText.render(canaryBody)
+        XCTAssertEqual(rendered.text, """
+        The export button does nothing.
+        ![\(canaryName)](\(canary))
+        Same screenshot again:
+        --
+        Sent from Eason
+        """)
+        XCTAssertEqual(rendered.inlineImages, [try XCTUnwrap(InlineImage(source: canary))])
+        XCTAssertFalse(rendered.text.contains("canarymail"))
+
+        let saved = OutputFormatter.HTMLText.plainText(canaryBody, inlineImagePaths: [canary: "files/inline-abc-\(canaryName)"])
+        XCTAssertTrue(saved.contains("\n![\(canaryName)](files/inline-abc-\(canaryName))\n"), saved)
+        XCTAssertFalse(saved.contains("cloudfront"))
+    }
+
+    func testInlineImageLabelsUseTheURLFileNameAndEscapeLikeAttachments() {
+        XCTAssertEqual(text(appleMailBody), "See screenshot:\n![\(appleMailName)](\(appleMail))")
+        XCTAssertEqual(OutputFormatter.HTMLText.plainText(appleMailBody, inlineImagePaths: [appleMail: "my files/inline-abc-\(appleMailName)"]),
+                       "See screenshot:\n![\(appleMailName)](<my files/inline-abc-\(appleMailName)>)")
+        let bracketed = "https://d33v4339jhl8k0.cloudfront.net/inline/1/abc/def/a%5Bb%5D%20(1).png"
+        XCTAssertEqual(text(#"<p>Hi <img src="\#(bracketed)"> there</p>"#),
+                       #"Hi ![a\[b\] (1).png](<\#(bracketed)>) there"#)
+    }
+
+    func testExternalImagesAreNeverLinked() {
+        let html = """
+        <p>Logo <img src="https://tracker.example.com/open.png?id=1" alt="https://tracker.example.com/open.png?id=1">
+        <img src="https://tracker.example.com/open.png?id=1"> <img src="HTTP://Mixed.Example.COM/x.png">
+        <img src="https://d33v4339jhl8k0.cloudfront.net.evil.com/inline/1/a/b/x.png">
+        <img src="https://d33v4339jhl8k0.cloudfront.net/customer-avatar/1/a.png">
+        <img src="data:image/png;base64,AAAA"> <img src="cid:image001.png@01D9"> <img src="logo.png">
+        <img src="https://tracker.example.com/pixel.gif" width="1" height=" 0 "> <img src=" "> <img alt="no source"> end</p>
+        """
+        let output = text(html)
+        XCTAssertEqual(output, "Logo [external image not fetched: tracker.example.com] [external image not fetched: mixed.example.com] "
+                       + "[external image not fetched: d33v4339jhl8k0.cloudfront.net.evil.com] "
+                       + "[external image not fetched: d33v4339jhl8k0.cloudfront.net] "
+                       + "[image not shown] [image not shown] [image not shown] end")
+        for fragment in ["](", "open.png", "pixel", "data:", "cid:", "x.png", "customer-avatar"] {
+            XCTAssertFalse(output.contains(fragment), fragment)
+        }
+        XCTAssertEqual(OutputFormatter.HTMLText.render(html).inlineImages, [])
+    }
+
+    func testImagesInSkippedMarkupAreIgnored() {
+        let html = #"<!-- <img src="\#(canary)"> --><style><img src="\#(canary)"></style><p>Only text</p>"#
+        XCTAssertEqual(OutputFormatter.HTMLText.render(html), .init(text: "Only text", inlineImages: []))
+        XCTAssertEqual(OutputFormatter.HTMLText.render("plain \(canary)"), .init(text: "plain \(canary)", inlineImages: []))
     }
 
     func testEmptyInput() {

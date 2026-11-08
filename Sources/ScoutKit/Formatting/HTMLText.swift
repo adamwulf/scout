@@ -1,10 +1,23 @@
+import Foundation
+
 extension OutputFormatter {
     /// Small, deterministic HTML-to-text conversion for readable markdown output. It is not an HTML
     /// parser: it keeps text, collapses whitespace, turns block elements into line breaks and list
     /// items into `- ` lines, skips scripts, styles and comments, and keeps http(s) and mailto links
     /// as markdown links. Text without tags keeps its line breaks but still has entities decoded,
     /// because escaped one-line replies such as `It&#39;s` contain no tags.
+    ///
+    /// Images are rendered where they appear, each `src` once. Help Scout inline images (see `InlineImage`)
+    /// become markdown images of the downloaded file or the CDN URL. Other images are never linked, because a
+    /// markdown viewer would load them and could notify the sender: http(s) images become
+    /// `[external image not fetched: host]`, other sources `[image not shown]`, and zero-size tracking pixels
+    /// disappear.
     enum HTMLText {
+        /// Body text and the distinct Help Scout inline images it shows, in order.
+        struct Rendering: Equatable {
+            var text: String
+            var inlineImages: [InlineImage]
+        }
         /// Checks actual body content without counting formatting tags or empty list bullets.
         /// Images with a source count as content even when there is no text.
         static func hasContent(_ input: String) -> Bool {
@@ -31,11 +44,18 @@ extension OutputFormatter {
             return !decodeEntities(text).unicodeScalars.allSatisfy { $0.properties.isWhitespace || $0 == "\u{200B}" }
         }
 
-        static func plainText(_ input: String) -> String {
+        /// `inlineImagePaths` maps an inline image's `src` to its downloaded file, which is shown instead of the CDN URL.
+        static func plainText(_ input: String, inlineImagePaths: [String: String] = [:]) -> String {
+            render(input, inlineImagePaths: inlineImagePaths).text
+        }
+
+        static func render(_ input: String, inlineImagePaths: [String: String] = [:]) -> Rendering {
             let normalized = TerminalText.multiline(input)
             let scalars = Array(normalized.unicodeScalars)
-            guard containsMarkup(scalars) else { return tidy(TerminalText.multiline(decodeEntities(normalized))) }
-            var writer = Writer()
+            guard containsMarkup(scalars) else {
+                return Rendering(text: tidy(TerminalText.multiline(decodeEntities(normalized))), inlineImages: [])
+            }
+            var writer = Writer(inlineImagePaths: inlineImagePaths)
             var skipping: String?
             var index = 0
             while index < scalars.count {
@@ -58,7 +78,15 @@ extension OutputFormatter {
                     index += 1
                 }
             }
-            return tidy(TerminalText.multiline(writer.result))
+            return Rendering(text: tidy(TerminalText.multiline(writer.result)), inlineImages: writer.inlineImages)
+        }
+
+        /// The `src` of an image worth showing: nonempty after trimming, and not a zero-width or zero-height
+        /// tracking pixel such as a read receipt.
+        private static func visibleImageSource(_ attributes: [String: String]) -> String? {
+            let source = (attributes["src"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let isTrackingPixel = ["width", "height"].contains { attributes[$0]?.trimmingCharacters(in: .whitespaces) == "0" }
+            return source.isEmpty || isTrackingPixel ? nil : source
         }
 
         private static let skippedElements: Set<String> = ["script", "style", "title", "template"]
@@ -79,6 +107,13 @@ extension OutputFormatter {
             /// `<p>` or `<div>` does not separate the bullet from its content.
             private var afterBullet = false
             private var links: [(href: String?, start: Int)] = []
+            private let inlineImagePaths: [String: String]
+            private var shownImageSources: Set<String> = []
+            private(set) var inlineImages: [InlineImage] = []
+
+            init(inlineImagePaths: [String: String]) {
+                self.inlineImagePaths = inlineImagePaths
+            }
 
             var result: String { String(String.UnicodeScalarView(output)) }
 
@@ -132,6 +167,22 @@ extension OutputFormatter {
                         flushSpace()
                         links.append((href: tag.attributes["href"], start: output.count))
                     }
+                } else if name == "img" && !tag.isClosing {
+                    image(tag.attributes)
+                }
+            }
+
+            private mutating func image(_ attributes: [String: String]) {
+                guard let source = HTMLText.visibleImageSource(attributes), shownImageSources.insert(source).inserted else { return }
+                if let inline = InlineImage(source: source) {
+                    inlineImages.append(inline)
+                    write(Markdown.link(label: inline.filename, fallback: "image",
+                                        destination: inlineImagePaths[source] ?? inline.url.absoluteString, isImage: true))
+                } else if let url = URL(string: source), ["http", "https"].contains(url.scheme?.lowercased()),
+                          let host = url.host(), !host.isEmpty {
+                    write("[external image not fetched: \(host.lowercased())]")
+                } else {
+                    write("[image not shown]")
                 }
             }
 

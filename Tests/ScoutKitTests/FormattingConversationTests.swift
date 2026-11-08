@@ -223,6 +223,69 @@ final class FormattingConversationTests: XCTestCase {
         XCTAssertFalse(json.contains("files/21-photo.png"))
     }
 
+    func testMarkdownListsAndEmbedsHelpScoutInlineImages() throws {
+        let canary = InlineImageTests.canaryImage, appleMail = InlineImageTests.appleMailImage
+        let canaryName = "6ED8F9BB-BF20-4EF1-930F-E829E7355D47_4_5005_c.jpeg", appleMailName = "CleanShot-2026-10-15-at-14-09-13-2x.png"
+        let invoice: JSONValue = .object(["id": .integer(11), "filename": .string("invoice.pdf"), "mimeType": .string("application/pdf")])
+        let first = thread(1, type: "customer", state: "published", author: jane, createdAt: "2024-01-01T09:00:00Z", body: """
+            <div>Two screenshots:</div><img src="\(appleMail)" alt="CleanShot 2026-10-15 at 14.09.13@2x.png"><img src="\(canary)" alt="\(canary)">
+            <img src="\(appleMail)"><img src="https://tracker.example.com/t.png">
+            <img src="https://receipts.canarymail.io/track/D98D.png" width="0" height="0">
+            """, extra: ["_embedded": .object(["attachments": .array([invoice])])])
+        let second = thread(2, type: "customer", state: "published", author: jane, createdAt: "2024-01-02T09:00:00Z",
+                            body: #"<p>Again <img src="\#(canary)"></p>"#)
+        let externalOnly = thread(3, type: "customer", state: "published", author: jane, createdAt: "2024-01-03T09:00:00Z",
+                                  body: #"<img src="https://tracker.example.com/t.png"><img src="\#(canary)" width="0">"#)
+        let inlinePaths = [appleMail: "files/inline-aaa-\(appleMailName)"]
+
+        let output = try OutputFormatter.conversation(conversation, threads: [externalOnly, second, first], format: .markdown,
+                                                      attachmentPaths: [11: "files/11-invoice.pdf"], inlineImagePaths: inlinePaths)
+
+        XCTAssertTrue(output.hasSuffix("""
+        ### 1. Customer message
+
+        - Thread ID: 1
+        - Author: Jane Doe <jane@example.com> (customer)
+        - Type: customer
+        - State: published
+        - Time: 2024-01-01T09:00:00Z
+        - Attachments: invoice.pdf (ID 11, application/pdf), \(appleMailName) (inline image), \(canaryName) (inline image)
+
+        Two screenshots:
+        ![\(appleMailName)](files/inline-aaa-\(appleMailName))![\(canaryName)](\(canary)) [external image not fetched: tracker.example.com]
+
+        [invoice.pdf](files/11-invoice.pdf)
+
+        ### 2. Customer message
+
+        - Thread ID: 2
+        - Author: Jane Doe <jane@example.com> (customer)
+        - Type: customer
+        - State: published
+        - Time: 2024-01-02T09:00:00Z
+        - Attachments: \(canaryName) (inline image)
+
+        Again ![\(canaryName)](\(canary))
+
+        ### 3. Customer message
+
+        - Thread ID: 3
+        - Author: Jane Doe <jane@example.com> (customer)
+        - Type: customer
+        - State: published
+        - Time: 2024-01-03T09:00:00Z
+
+        [external image not fetched: tracker.example.com]
+
+        """), output)
+        XCTAssertFalse(output.contains("canarymail"))
+        XCTAssertFalse(output.contains("tracker.example.com/"))
+
+        let json = try OutputFormatter.conversation(conversation, threads: [first], format: .json, inlineImagePaths: inlinePaths)
+        XCTAssertEqual(try JSONDecoder().decode(JSONValue.self, from: Data(json.utf8))["threads"], .array([first]))
+        XCTAssertFalse(json.contains("files/inline-aaa"))
+    }
+
     func testEmptyThreadsAndConversationDetail() throws {
         let output = try OutputFormatter.conversation(conversation, threads: [], format: .markdown)
         XCTAssertTrue(output.hasSuffix("## Threads\n\nNo threads.\n"))
