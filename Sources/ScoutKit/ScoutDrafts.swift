@@ -12,11 +12,16 @@ public struct DraftReceipt: Codable, Sendable {
 
 extension ScoutClient {
     /// Creates a draft only when none exists; otherwise updates the selected draft's body.
+    /// Refuses scheduled drafts, because changing their text changes a reply Help Scout will send automatically.
     public func saveDraft(conversation id: Int, thread threadID: Int? = nil, content: ReplyContent) async throws -> DraftReceipt {
         if let threadID { try Self.positive(threadID, name: "Thread ID") }
         let literal = try Self.literalReply(content)
         let view = try await show(id)
         let draft = try Self.selectDraft(in: view, threadID: threadID)
+        if let draft, draft["scheduled"] != .null {
+            let selectedID = try draft.requiredID()
+            throw ScoutError.invalidInput("Draft \(selectedID) in conversation \(id) is scheduled to send automatically. Scout does not edit scheduled drafts; change or unschedule it in Help Scout.")
+        }
         let text = try await replyText(content, literal: literal, conversation: view.conversation)
         if let draft {
             let selectedID = try draft.requiredID()

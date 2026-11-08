@@ -1,5 +1,7 @@
 # Draft lifecycle implementation plan
 
+> Superseded interface: on 2026-11-08 `draft --send` moved to a separate `scout send-draft CONVERSATION_ID [--thread THREAD_ID]` command so `draft` can never send. This plan records the original design.
+
 ## Goal and acceptance criteria
 
 Extend the existing `scout draft` command to create or update and send a selected existing draft. Adam approved deferring deletion on 2026-11-08 because no documented public draft-thread deletion endpoint was found. Keep the executable thin and implement selection and HTTP workflows in ScoutKit. The user requested this sequence: plan file, one Sol agent plan review, implementation, then two independent Sol agent implementation reviews.
