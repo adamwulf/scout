@@ -149,6 +149,19 @@ final class FormattingHTMLTextTests: XCTestCase {
                        "- ![\(canaryName)](\(canary))\n- Next")
     }
 
+    /// The paragraph break waits for the next text, so a link around the image still wraps it, and a `<br>`
+    /// after the image in a list item stays one line break instead of a blank line that ends the list.
+    func testParagraphAfterInlineImageKeepsLinksAndListsIntact() {
+        XCTAssertEqual(text(#"<table><tr><td><a href="https://company.com"><img src="\#(canary)"></a></td><td>Jane Doe<br>CEO</td></tr></table>"#),
+                       "[![\(canaryName)](\(canary))](https://company.com)\n\nJane Doe\nCEO")
+        XCTAssertEqual(text(#"<a href="https://a.example"><img src="\#(canary)"></a><a href="https://b.example"><img src="\#(appleMail)"></a>"#),
+                       "[![\(canaryName)](\(canary))](https://a.example)\n\n[![\(appleMailName)](\(appleMail))](https://b.example)")
+        XCTAssertEqual(text(#"<ol><li>Open Settings<br><img src="\#(canary)"><br>Then click Save</li><li>Restart</li></ol>"#),
+                       "- Open Settings\n![\(canaryName)](\(canary))\nThen click Save\n- Restart")
+        XCTAssertEqual(text(#"<ul><li><p><img src="\#(canary)"><br>Caption</p></li><li>Next</li></ul>"#),
+                       "- ![\(canaryName)](\(canary))\nCaption\n- Next")
+    }
+
     func testExternalImagesAreNeverLinked() {
         let html = """
         <p>Logo <img src="https://tracker.example.com/open.png?id=1" alt="https://tracker.example.com/open.png?id=1">

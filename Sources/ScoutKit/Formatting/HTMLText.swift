@@ -8,8 +8,8 @@ extension OutputFormatter {
     /// because escaped one-line replies such as `It&#39;s` contain no tags.
     ///
     /// Images are rendered where they appear, each `src` once. Help Scout inline images (see `InlineImage`)
-    /// become markdown images of the downloaded file or the CDN URL, each followed by a blank line (a line
-    /// break inside a list). Other images are never linked, because a
+    /// become markdown images of the downloaded file or the CDN URL, and text after one starts a new paragraph
+    /// (a new line inside a list). Other images are never linked, because a
     /// markdown viewer would load them and could notify the sender: http(s) images become
     /// `[external image not fetched: host]`, other sources `[image not shown]`, and zero-size tracking pixels
     /// disappear.
@@ -112,6 +112,11 @@ extension OutputFormatter {
             private let inlineImagePaths: [String: String]
             private var shownImageSources: Set<String> = []
             private(set) var inlineImages: [InlineImage] = []
+            /// True after an inline image until the next text or link starts a new paragraph, so a following
+            /// `--` or `==` line (such as a `-- ` signature delimiter) is not a setext underline that turns the
+            /// image into a heading. Waiting for that text lets a link around the image close first, and keeps
+            /// a `<br>` after the image from adding a second line break inside a list.
+            private var paragraphAfterImage = false
 
             init(inlineImagePaths: [String: String]) {
                 self.inlineImagePaths = inlineImagePaths
@@ -131,10 +136,17 @@ extension OutputFormatter {
                 } else if scalar.properties.isWhitespace {
                     pendingSpace = true
                 } else {
+                    startParagraphAfterImage()
                     flushSpace()
                     afterBullet = false
                     output.append(scalar)
                 }
+            }
+
+            private mutating func startParagraphAfterImage() {
+                guard paragraphAfterImage else { return }
+                paragraphAfterImage = false
+                paragraphBreak()
             }
 
             mutating func handle(_ tag: Tag) {
@@ -166,6 +178,7 @@ extension OutputFormatter {
                     pendingSpace = true
                 } else if name == "a" {
                     if tag.isClosing { closeLink() } else {
+                        startParagraphAfterImage()
                         flushSpace()
                         links.append((href: tag.attributes["href"], start: output.count))
                     }
@@ -180,9 +193,7 @@ extension OutputFormatter {
                     inlineImages.append(inline)
                     write(Markdown.link(label: inline.filename, fallback: "image",
                                         destination: inlineImagePaths[source] ?? inline.url.absoluteString, isImage: true))
-                    // End the paragraph, so a following `--` or `==` line (such as a `-- ` signature
-                    // delimiter) is not read as a setext heading underline that swallows the image.
-                    paragraphBreak()
+                    paragraphAfterImage = true
                 } else if let url = URL(string: source), ["http", "https"].contains(url.scheme?.lowercased()),
                           let host = url.host(), !host.isEmpty {
                     write("[external image not fetched: \(host.lowercased())]")
