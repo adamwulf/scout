@@ -8,6 +8,7 @@ public struct ScoutConfiguration: Sendable, Equatable {
     public static let accessTokenKey = "SCOUT_ACCESS_TOKEN"
     public static let inboxIDKey = "SCOUT_INBOX_ID"
     static let keys: Set<String> = [appIDKey, appSecretKey, accessTokenKey, inboxIDKey]
+    static let credentialKeys: Set<String> = [appIDKey, appSecretKey, accessTokenKey]
 
     public var appID: String?
     public var appSecret: String?
@@ -31,8 +32,9 @@ public struct ScoutConfiguration: Sendable, Equatable {
     }
 
     /// Reads only `envFile` when given (relative paths resolve against `startingDirectory`). Otherwise reads each
-    /// `.env` from `startingDirectory` upward, stopping after the first file at which credentials are complete
-    /// (an access token, or both app ID and app secret). Each key takes its first nonempty value from the process
+    /// `.env` from `startingDirectory` upward and stops at the first file that sets any credential, so file
+    /// credentials (including the app ID and secret pair) always come from one file. Discovery also stops once the
+    /// process environment supplies complete credentials. Each key takes its first nonempty value from the process
     /// environment, then nearer files, then farther files; empty values count as unset.
     public static func load(
         envFile: String? = nil,
@@ -64,11 +66,12 @@ public struct ScoutConfiguration: Sendable, Equatable {
         var files: [URL] = []
         for file in candidates {
             files.append(file)
-            for (key, entry) in try DotEnvParser.parse(readText(file), keys: keys, source: file.path)
-            where !entry.value.isEmpty && settings[key] == nil {
+            let entries = try DotEnvParser.parse(readText(file), keys: keys, source: file.path)
+                .filter { !$0.value.value.isEmpty }
+            for (key, entry) in entries where settings[key] == nil {
                 settings[key] = Setting(value: entry.value, location: "\(file.path) line \(entry.line)")
             }
-            if hasCredentials(settings) { break }
+            if hasCredentials(settings) || !credentialKeys.isDisjoint(with: entries.keys) { break }
         }
 
         let paths = files.map(\.path).joined(separator: ", ")

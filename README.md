@@ -48,7 +48,7 @@ scout ro inboxes
 scout ro list --inbox 123
 ```
 
-Scout reads `.env` files from the current directory upward, stopping after the first file at which credentials are complete: `SCOUT_ACCESS_TOKEN`, or both `SCOUT_APP_ID` and `SCOUT_APP_SECRET`. A closer `.env` without Scout keys is therefore skipped in favor of a parent's. Each setting takes its first nonempty value from the process environment, then nearer files, then farther files; empty values such as `SCOUT_APP_ID=` count as unset. Files above the one that completes the credentials are not read. Basic `KEY=value`, optional `export`, single/double quotes, and comments are supported; no shell expressions or variable interpolation run. Errors identify the selected file and missing key names without printing secret values.
+Scout reads `.env` files from the current directory upward and stops at the first one that sets any of `SCOUT_APP_ID`, `SCOUT_APP_SECRET` or `SCOUT_ACCESS_TOKEN`. A closer `.env` without Scout credentials is skipped in favor of a parent's, and file credentials always come from that one file, so the app ID and secret are never mixed across files. `SCOUT_INBOX_ID` may come from that file or a nearer one. Empty values such as `SCOUT_APP_ID=` count as unset. Nonempty process environment values override file values. Basic `KEY=value`, optional `export`, single/double quotes, and comments are supported; no shell expressions or variable interpolation run. Errors identify the files read and missing key names without printing secret values.
 
 From another directory, use an explicit path **after the leaf command**:
 
