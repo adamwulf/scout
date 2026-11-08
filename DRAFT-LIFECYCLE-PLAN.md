@@ -2,7 +2,7 @@
 
 ## Goal and acceptance criteria
 
-Extend the existing `scout draft` command to create or update, send, and delete a selected existing draft. Keep the executable thin and implement selection and HTTP workflows in ScoutKit. The user requested this sequence: plan file, one Sol agent plan review, implementation, then two independent Sol agent implementation reviews.
+Extend the existing `scout draft` command to create or update and send a selected existing draft. Adam approved deferring deletion on 2026-11-08 because no documented public draft-thread deletion endpoint was found. Keep the executable thin and implement selection and HTTP workflows in ScoutKit. The user requested this sequence: plan file, one Sol agent plan review, implementation, then two independent Sol agent implementation reviews.
 
 - [ ] One Sol reviewer approves the plan and API feasibility.
 - [ ] Implement the agreed interface with offline selection, request, failure, and CLI parsing coverage.
@@ -18,20 +18,19 @@ scout draft CONVERSATION_ID --body 'Reply text'
 scout draft CONVERSATION_ID --body-file reply.txt
 scout draft CONVERSATION_ID --template TEMPLATE_ID
 scout draft CONVERSATION_ID --send
-scout draft CONVERSATION_ID --delete
 scout draft CONVERSATION_ID --thread THREAD_ID --send
 ```
 
-Exactly one action is required: send, delete, or one body source. Reject combinations of send/delete/body sources before loading credentials or reading a body file/stdin. `--html` only applies to literal body/file input, not send/delete/template. Validate positive conversation and optional thread IDs. Keep `scout send` as the existing new-reply operation; do not add status or scheduling options to draft in this change. All draft actions remain unavailable under `ro`.
+Exactly one action is required: send or one body source. Reject combinations of send/body sources before loading credentials or reading a body file/stdin. `--html` only applies to literal body/file input, not send/template. Validate positive conversation and optional thread IDs. Keep `scout send` as the existing new-reply operation; do not add status or scheduling options to draft in this change. All draft actions remain unavailable under `ro`.
 
 Selection uses all thread pages for the specified conversation. Count every thread in state `draft` when deciding zero/one/multiple, so an unsupported draft is never silently ignored to create another. For this reply-focused change, only type `message` is a supported mutation target; reject other types, including `forwardparent`/`forwardchild`, with an explicit unsupported-type error. Do not test for a nonexistent `reply` type. The API exposes these type values, state and optional schedule metadata.[^1]
 
-- No draft: body input creates one; send/delete fail with a no-draft error.
+- No draft: body input creates one; send fails with a no-draft error.
 - One draft: select it automatically.
 - Multiple drafts: fail with candidate IDs and require `--thread`.
 - Explicit thread ID: require that exact draft in the conversation; never fall back to creation.
 
-Do not assume the service enforces one draft per conversation. Receipts identify conversation ID, thread ID and operation (created/updated/sent/deleted). Display thread IDs in Markdown `show` if not already present. No body text in receipts/errors.
+Do not assume the service enforces one draft per conversation. Receipts identify conversation ID, thread ID and operation (created/updated/sent). Display thread IDs in Markdown `show` if not already present. No body text in receipts/errors.
 
 ## API findings and feasibility gate
 
@@ -42,24 +41,24 @@ Update uses `PATCH /v2/conversations/{id}/threads/{threadId}` with the JSON obje
 Sending must use the existing draft rather than copying its body to a new reply. There are two documented publication operations to distinguish:
 
 - **Conversation publication:** `PATCH /v2/conversations/{id}` with `{"op":"replace","path":"/draft","value":false}` is documented as publishing a draft.[^8] This operation has no thread selector. Creation documentation separately describes draft conversations.[^9] The sources reviewed do not establish whether conversation publication sends a selected reply draft inside an already published conversation, or how it behaves with multiple drafts. Do not claim it requires scheduling, and do not implement this as selected-thread publication without resolving those semantics. A live test would send mail and requires Adam to select a test conversation and authorize it.
-- **Thread schedule publication:** an already scheduled draft can be published with `PATCH .../schedule`, `{"op":"replace","path":"/state","value":"published"}`. A proposed fallback for an unscheduled reply draft is to schedule it with `PUT .../schedule` and then immediately publish it. Scheduling requires a future ISO 8601 time and `unscheduleOnCustomerReply`; it optionally accepts `sendAsCreator`.[^4][^5] This fallback remains pending Adam's decision because of the partial-failure behavior below.
+- **Thread schedule publication:** an already scheduled draft can be published with `PATCH .../schedule`, `{"op":"replace","path":"/state","value":"published"}`. The accepted path for an unscheduled reply draft is to schedule it with `PUT .../schedule` and then immediately publish it. Scheduling requires a future ISO 8601 time and `unscheduleOnCustomerReply`; it optionally accepts `sendAsCreator`.[^4][^5] Adam accepted this flow and its partial-failure behavior on 2026-11-08, requiring correctly descriptive errors.
 
-Proposed unscheduled-send choices, pending Adam's decision: a time 24 hours in the future, `unscheduleOnCustomerReply: true`, and `sendAsCreator: false` (the API default, sending as the acting identity). Help Scout describes scheduled replies as sent by the user who schedules them.[^7] Inject a clock for deterministic tests. The future timestamp provides time to inspect a partial failure; it is not a guarantee against a later automatic send. Never silently schedule near-now as a substitute for publishing. A process interruption between scheduling and publication can leave a queued send without an error message. This two-request contract must be explained in command help and documentation, not only on caught errors.
+Accepted unscheduled-send choices: a time 24 hours in the future, `unscheduleOnCustomerReply: true`, and `sendAsCreator: false` (the API default, sending as the acting identity). Help Scout describes scheduled replies as sent by the user who schedules them.[^7] Inject a clock for deterministic tests. The future timestamp provides time to inspect a partial failure; it is not a guarantee against a later automatic send. Never silently schedule near-now as a substitute for publishing. A process interruption between scheduling and publication can leave a queued send without an error message. This two-request contract must be explained in command help and documentation, not only on caught errors.
 
 If scheduling or publication fails or times out, stop without automatic retry, rollback, or another send. Distinguish the failed phase and known versus uncertain outcomes: a rejected schedule was not published by this command; a timed-out/5xx schedule may be queued; a rejected publication can leave the confirmed schedule active; a timed-out/5xx publication may already have sent or may still be queued. Include conversation/thread IDs and direct the user to inspect the thread and cancel any remaining schedule in Help Scout before retrying. If the draft was already scheduled, preserve that schedule and sender configuration. Validate existing draft body for unresolved variables before any send mutation without rewriting its HTML. Reject missing or whitespace-only bodies and ordinary empty editor HTML (such as `<p><br></p>` or `&nbsp;`); preserve image-only or attachment-bearing drafts as meaningful content. Keep this validation local to existing-draft sending. Do not change conversation status separately, and do not promise publication preserves status: the schedule/publish endpoints do not document the resulting conversation status. Creation preserves status explicitly and body updates write only text.
 
-**Unresolved deletion endpoint:** initial research did not find a documented endpoint that deletes a draft thread. `DELETE .../schedule` explicitly only unschedules the thread, leaving a draft.[^6] `DELETE /conversations/{id}` is not an acceptable substitute. The plan reviewer must independently check deletion support. Do not invent a thread DELETE endpoint, hide a draft, clear its text, or delete a conversation to simulate draft deletion. If no documented operation is available, bring this limitation to Adam for a decision before treating `--delete` as implementable. Continue only independently authorized work while a decision is pending.
+**Deletion deferred by Adam on 2026-11-08:** research and independent review found no documented draft-thread deletion endpoint. `DELETE .../schedule` only unschedules the thread, leaving a draft.[^6] Do not expose `--delete`, invent an endpoint, hide/clear a draft, or delete a conversation to simulate deletion. Direct users to delete drafts in Help Scout.
 
 ## Plan review outcome — 2026-11-08
 
-Sol reviewer `agent-86c51851` requested changes. Independent research likewise found no documented draft-thread deletion endpoint. Decisions pending from Adam: defer deletion (recommended) or reserve `--delete` with an explicit unsupported-operation error; accept the documented two-step send contract or defer unscheduled sends. Selection types, HTML-empty validation, partial-send diagnostics, and limits on status guarantees are clarified above. Implementation remains pending resolution and plan re-review by this same reviewer.
+Sol reviewer `agent-86c51851` requested changes. Independent research likewise found no documented draft-thread deletion endpoint. Adam accepted schedule-then-publish sending with descriptive failure messages and approved deferring deletion. Selection types, HTML-empty validation, partial-send diagnostics, and limits on status guarantees are clarified above. Create/update/send implementation awaits plan re-review by this same reviewer.
 
-Reviewer follow-up supplied by Adam identified the conversation-level `/draft: false` publication operation. The earlier claim that scheduling was always necessary was too broad. Investigate this direct operation before settling on the two-step send path; its applicability to reply drafts and explicit thread selection remains unresolved.
+Reviewer follow-up supplied by Adam identified the conversation-level `/draft: false` publication operation. The earlier claim that scheduling was always necessary was too broad. Its applicability to reply drafts and explicit thread selection remains unresolved; Adam subsequently accepted the thread-specific schedule/publish path, so this investigation is deferred.
 
 ## Implementation shape
 
 1. Add focused ScoutKit draft lifecycle methods plus shared draft selection. Preserve `createDraft` as the explicitly named library creation primitive; add a save/upsert method for CLI use. Reuse conversation/thread paging, HTTP errors, template lookup and ReplyBody validation. Extract small helpers where this avoids duplicating existing reply preparation.
-2. Refactor CLI body options so the draft command can validate its combined action while the existing send command still requires exactly one body source. Keep validation reusable and ensure send/delete do not evaluate content providers.
+2. Refactor CLI body options so the draft command can validate its combined action while the existing send command still requires exactly one body source. Keep validation reusable and ensure draft --send does not evaluate content providers.
 3. Fetch and validate the target conversation before writes, retaining existing merged-ID behavior. Fully enumerate threads before selecting. Use the returned conversation for template lookup/status rather than redundant reads where practical.
 4. Handle successful 204 responses without decoding a nonexistent body. Retain no-automatic-replay behavior for uncertain writes; no custom retries, migrations, or compatibility layer.
 5. Document the new create/update behavior, explicit thread selection, commands, permissions, scheduled-send mechanism and partial-failure recovery. Remove statements that existing drafts cannot be published through Scout once implemented. Update the installed skill only if explicitly requested; repository skill is in scope.
@@ -74,7 +73,7 @@ Use injected transport and safe fixture data only; no real credentials, customer
 - Sending preserves the thread ID; unscheduled PUT then publish PATCH in order; scheduled draft only publishes. Verify schedule time/fields using a fixed clock.
 - Missing/empty/unresolved draft body fails before scheduling/publishing.
 - HTTP failures at each step: no downstream publish after failed scheduling, no replay after timeout/5xx; actionable partial-send error; no success receipt for failure.
-- Deletion tests depend on resolving the feasibility gate; no fake implementation against an undocumented endpoint.
+- Verify deferred `--delete` is rejected as an unknown option; no fake implementation against an undocumented endpoint.
 - Parse all valid actions/options, every conflicting action/source combination, missing action, invalid IDs, invalid html combinations, and read-only rejection. Ensure original `scout send` parsing remains strict.
 - JSON receipt operation/IDs and Markdown draft ID visibility.
 
