@@ -123,14 +123,14 @@ final class FormattingHTMLTextTests: XCTestCase {
         XCTAssertEqual(rendered.inlineImages, [try XCTUnwrap(InlineImage(source: canary))])
         XCTAssertFalse(rendered.text.contains("canarymail"))
 
-        let saved = OutputFormatter.HTMLText.plainText(canaryBody, inlineImagePaths: [canary: "files/inline-abc-\(canaryName)"])
+        let saved = OutputFormatter.HTMLText.render(canaryBody, inlineImagePaths: [canary: "files/inline-abc-\(canaryName)"]).text
         XCTAssertTrue(saved.contains("\n![\(canaryName)](files/inline-abc-\(canaryName))\n"), saved)
         XCTAssertFalse(saved.contains("cloudfront"))
     }
 
     func testInlineImageLabelsUseTheURLFileNameAndEscapeLikeAttachments() {
         XCTAssertEqual(text(appleMailBody), "See screenshot:\n![\(appleMailName)](\(appleMail))")
-        XCTAssertEqual(OutputFormatter.HTMLText.plainText(appleMailBody, inlineImagePaths: [appleMail: "my files/inline-abc-\(appleMailName)"]),
+        XCTAssertEqual(OutputFormatter.HTMLText.render(appleMailBody, inlineImagePaths: [appleMail: "my files/inline-abc-\(appleMailName)"]).text,
                        "See screenshot:\n![\(appleMailName)](<my files/inline-abc-\(appleMailName)>)")
         let bracketed = "https://d33v4339jhl8k0.cloudfront.net/inline/1/abc/def/a%5Bb%5D%20(1).png"
         XCTAssertEqual(text(#"<p>Hi <img src="\#(bracketed)"> there</p>"#),

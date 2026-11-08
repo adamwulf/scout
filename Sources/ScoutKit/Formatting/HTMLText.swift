@@ -44,11 +44,12 @@ extension OutputFormatter {
             return !decodeEntities(text).unicodeScalars.allSatisfy { $0.properties.isWhitespace || $0 == "\u{200B}" }
         }
 
-        /// `inlineImagePaths` maps an inline image's `src` to its downloaded file, which is shown instead of the CDN URL.
-        static func plainText(_ input: String, inlineImagePaths: [String: String] = [:]) -> String {
-            render(input, inlineImagePaths: inlineImagePaths).text
+        /// The rendered text alone; inline images show their CDN URLs.
+        static func plainText(_ input: String) -> String {
+            render(input).text
         }
 
+        /// `inlineImagePaths` maps an inline image's `src` to its downloaded file, which is shown instead of the CDN URL.
         static func render(_ input: String, inlineImagePaths: [String: String] = [:]) -> Rendering {
             let normalized = TerminalText.multiline(input)
             let scalars = Array(normalized.unicodeScalars)
