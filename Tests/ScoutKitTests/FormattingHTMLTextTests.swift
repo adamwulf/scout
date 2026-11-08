@@ -116,6 +116,7 @@ final class FormattingHTMLTextTests: XCTestCase {
         XCTAssertEqual(rendered.text, """
         The export button does nothing.
         ![\(canaryName)](\(canary))
+
         Same screenshot again:
         --
         Sent from Eason
@@ -134,7 +135,18 @@ final class FormattingHTMLTextTests: XCTestCase {
                        "See screenshot:\n![\(appleMailName)](<my files/inline-abc-\(appleMailName)>)")
         let bracketed = "https://d33v4339jhl8k0.cloudfront.net/inline/1/abc/def/a%5Bb%5D%20(1).png"
         XCTAssertEqual(text(#"<p>Hi <img src="\#(bracketed)"> there</p>"#),
-                       #"Hi ![a\[b\] (1).png](<\#(bracketed)>) there"#)
+                       #"Hi ![a\[b\] (1).png](<\#(bracketed)>)"# + "\n\nthere")
+    }
+
+    /// Conversation #7388: a pasted image directly followed by a `-- ` signature. Without the blank line, the
+    /// `--` (or a `===` line) would be a setext underline that turns the image into a heading.
+    func testInlineImageEndsItsParagraphSoAFollowingRuleLineIsNotAHeadingUnderline() {
+        XCTAssertEqual(text(#"<div><img src="\#(canary)"></div><div>--&nbsp;</div><div>Sent from Eason</div>"#),
+                       "![\(canaryName)](\(canary))\n\n--\nSent from Eason")
+        XCTAssertEqual(text(#"<img src="\#(canary)"><br>==========<br>Ian"#),
+                       "![\(canaryName)](\(canary))\n\n==========\nIan")
+        XCTAssertEqual(text(#"<ul><li><img src="\#(canary)"></li><li>Next</li></ul>"#),
+                       "- ![\(canaryName)](\(canary))\n- Next")
     }
 
     func testExternalImagesAreNeverLinked() {

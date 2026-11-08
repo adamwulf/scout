@@ -8,7 +8,8 @@ extension OutputFormatter {
     /// because escaped one-line replies such as `It&#39;s` contain no tags.
     ///
     /// Images are rendered where they appear, each `src` once. Help Scout inline images (see `InlineImage`)
-    /// become markdown images of the downloaded file or the CDN URL. Other images are never linked, because a
+    /// become markdown images of the downloaded file or the CDN URL, each followed by a blank line (a line
+    /// break inside a list). Other images are never linked, because a
     /// markdown viewer would load them and could notify the sender: http(s) images become
     /// `[external image not fetched: host]`, other sources `[image not shown]`, and zero-size tracking pixels
     /// disappear.
@@ -179,6 +180,9 @@ extension OutputFormatter {
                     inlineImages.append(inline)
                     write(Markdown.link(label: inline.filename, fallback: "image",
                                         destination: inlineImagePaths[source] ?? inline.url.absoluteString, isImage: true))
+                    // End the paragraph, so a following `--` or `==` line (such as a `-- ` signature
+                    // delimiter) is not read as a setext heading underline that swallows the image.
+                    paragraphBreak()
                 } else if let url = URL(string: source), ["http", "https"].contains(url.scheme?.lowercased()),
                           let host = url.host(), !host.isEmpty {
                     write("[external image not fetched: \(host.lowercased())]")

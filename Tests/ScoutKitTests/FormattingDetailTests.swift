@@ -90,7 +90,9 @@ final class FormattingDetailTests: XCTestCase {
 
         - ID: 3
 
-        Our logo: ![CleanShot-2026-10-15-at-14-09-13-2x.png](\(InlineImageTests.appleMailImage)) [external image not fetched: cdn.example.com]
+        Our logo: ![CleanShot-2026-10-15-at-14-09-13-2x.png](\(InlineImageTests.appleMailImage))
+
+        [external image not fetched: cdn.example.com]
 
         """)
     }
