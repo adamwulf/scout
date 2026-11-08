@@ -89,6 +89,19 @@ Acceptance: assert captured requests have correct customer, inbox template looku
 
 Deferred: multi-account, browser OAuth, local template library, attachment upload/download, contact editing, new outbound conversations, scheduling, existing-draft publish, bulk actions, webhooks, reports, sync, and migrations.
 
+## Implementation outcome — 2026-11-07
+
+All five phases are complete. The implementation is committed on `agent/helpscout-cli`; live validation remains the explicitly documented follow-up.
+
+- Plan reviews: `agent-f1d6afc7` and `agent-48431bf1` approved the revised plan at `69a875b`.
+- Auth/config/HTTP reviews: `agent-ef29ddf0` and `agent-8427f9c9` approved after fixing empty dotenv values followed by comments and adding the error-response source citation.
+- Formatting/body reviews: `agent-cc6d0d0f` and `agent-8427f9c9` approved after fixing tagless HTML entity decoding, rich-text list bullets, and plain-text customer notes.
+- Final implementation reviews: `agent-68e2980e` and `agent-5286b781` approved `16d42e8`. Both independently ran the 112-test suite and release build. The usability reviewer also checked help, rejected read-only writes, bare-text search validation, README examples and citations.
+- Verification: `swift test --disable-sandbox` passes (108 library tests + 4 CLI tests); `swift build --disable-sandbox -c release` succeeds; root and send help smoke checks pass. Tests never use real credentials or send real messages.
+- Environment adjustment: configuration fixtures use `scout-fixture.env` through an internal test-only discovery override because this sandbox blocks all `.env` files, including synthetic ones. Public discovery still uses `.env`.
+- Deferred review notes: show/customer help lists `raw` among the shared enum values, but explicitly describes markdown/json and rejects raw during parsing. This cosmetic help mismatch does not affect supported commands. Extra CLI continuation-assembly tests were suggested but not required: library shell quoting/continuation and CLI parse coverage passed.
+- Remaining live checks: authenticate, list/read/search/customer/template results, actual cursor and thread pagination behavior, merged conversation response, and draft status preservation on a user-selected test conversation. No live API calls or real sends were performed.
+
 ## Sources
 
 [^1]: [Help Scout authentication](https://developer.helpscout.com/mailbox-api/overview/authentication/)
