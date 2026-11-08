@@ -2,9 +2,19 @@
 
 A single-account Help Scout client: `ScoutKit` contains the logic; `scout` is a thin Swift Argument Parser executable.
 
-## Build
+## Installation
 
 Requires Swift 6 and macOS 13 or later.
+
+Install globally using [Mint](https://github.com/yonaskolb/Mint):
+
+```sh
+mint install adamwulf/scout@main --force
+```
+
+Mint links `scout` into `~/.mint/bin`, so make sure that directory is on your PATH. `--force` reinstalls even if `scout` is already installed, which is how you pick up new commits on `main`.
+
+## Build from source
 
 ```sh
 swift build -c release
