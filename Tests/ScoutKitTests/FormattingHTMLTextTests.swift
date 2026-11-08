@@ -111,12 +111,15 @@ final class FormattingHTMLTextTests: XCTestCase {
         #"<div>See screenshot:</div><div><img alt="CleanShot 2026-10-15 at 14.09.13@2x.png" width="640" src="\#(appleMail)"></div>"#
     }
 
-    func testHelpScoutInlineImagesRenderInPlaceOnceWithoutTrackingPixels() throws {
+    func testHelpScoutInlineImagesRenderWhereverTheyAppearWithoutTrackingPixels() throws {
         let rendered = OutputFormatter.HTMLText.render(canaryBody)
         XCTAssertEqual(rendered.text, """
         The export button does nothing.
         ![\(canaryName)](\(canary))
+
         Same screenshot again:
+        ![\(canaryName)](\(canary))
+
         --
         Sent from Eason
         """)
@@ -134,7 +137,37 @@ final class FormattingHTMLTextTests: XCTestCase {
                        "See screenshot:\n![\(appleMailName)](<my files/inline-abc-\(appleMailName)>)")
         let bracketed = "https://d33v4339jhl8k0.cloudfront.net/inline/1/abc/def/a%5Bb%5D%20(1).png"
         XCTAssertEqual(text(#"<p>Hi <img src="\#(bracketed)"> there</p>"#),
-                       #"Hi ![a\[b\] (1).png](<\#(bracketed)>) there"#)
+                       #"Hi ![a\[b\] (1).png](<\#(bracketed)>)"# + "\n\nthere")
+    }
+
+    /// Conversation #7388: a pasted image directly followed by a `-- ` signature. Without the blank line, the
+    /// `--` (or a `===` line) would be a setext underline that turns the image into a heading.
+    func testInlineImageEndsItsParagraphSoAFollowingRuleLineIsNotAHeadingUnderline() {
+        XCTAssertEqual(text(#"<div><img src="\#(canary)"></div><div>--&nbsp;</div><div>Sent from Eason</div>"#),
+                       "![\(canaryName)](\(canary))\n\n--\nSent from Eason")
+        XCTAssertEqual(text(#"<img src="\#(canary)"><br>==========<br>Ian"#),
+                       "![\(canaryName)](\(canary))\n\n==========\nIan")
+        XCTAssertEqual(text(#"<ul><li><img src="\#(canary)"></li><li>Next</li></ul>"#),
+                       "- ![\(canaryName)](\(canary))\n- Next")
+    }
+
+    /// The paragraph break waits for the next text, so a link around the image still wraps it, and a `<br>`
+    /// after the image in a list item stays one line break instead of a blank line that ends the list.
+    func testParagraphAfterInlineImageKeepsLinksAndListsIntact() {
+        XCTAssertEqual(text(#"<table><tr><td><a href="https://company.com"><img src="\#(canary)"></a></td><td>Jane Doe<br>CEO</td></tr></table>"#),
+                       "[![\(canaryName)](\(canary))](https://company.com)\n\nJane Doe\nCEO")
+        XCTAssertEqual(text(#"<a href="https://a.example"><img src="\#(canary)"></a><a href="https://b.example"><img src="\#(appleMail)"></a>"#),
+                       "[![\(canaryName)](\(canary))](https://a.example)\n\n[![\(appleMailName)](\(appleMail))](https://b.example)")
+        XCTAssertEqual(text(#"<a href="https://www.company.com"><img src="\#(canary)"> www.company.com</a><br>-- <br>Sig"#),
+                       "[![\(canaryName)](\(canary)) www.company.com](https://www.company.com)\n\n--\nSig")
+        XCTAssertEqual(text(#"<a href="https://company.com">Company<br><img src="\#(canary)"></a><br>-- <br>Sig"#),
+                       "Company\n![\(canaryName)](\(canary)) (https://company.com)\n\n--\nSig")
+        XCTAssertEqual(text(#"Thanks<a href="https://company.com"><div><img src="\#(canary)"></div></a><div>--</div>"#),
+                       "Thanks\n![\(canaryName)](\(canary))\n(https://company.com)\n\n--")
+        XCTAssertEqual(text(#"<ol><li>Open Settings<br><img src="\#(canary)"><br>Then click Save</li><li>Restart</li></ol>"#),
+                       "- Open Settings\n![\(canaryName)](\(canary))\nThen click Save\n- Restart")
+        XCTAssertEqual(text(#"<ul><li><p><img src="\#(canary)"><br>Caption</p></li><li>Next</li></ul>"#),
+                       "- ![\(canaryName)](\(canary))\nCaption\n- Next")
     }
 
     func testExternalImagesAreNeverLinked() {
@@ -147,7 +180,8 @@ final class FormattingHTMLTextTests: XCTestCase {
         <img src="https://tracker.example.com/pixel.gif" width="1" height=" 0 "> <img src=" "> <img alt="no source"> end</p>
         """
         let output = text(html)
-        XCTAssertEqual(output, "Logo [external image not fetched: tracker.example.com] [external image not fetched: mixed.example.com] "
+        XCTAssertEqual(output, "Logo [external image not fetched: tracker.example.com] [external image not fetched: tracker.example.com] "
+                       + "[external image not fetched: mixed.example.com] "
                        + "[external image not fetched: d33v4339jhl8k0.cloudfront.net.evil.com] "
                        + "[external image not fetched: d33v4339jhl8k0.cloudfront.net] "
                        + "[image not shown] [image not shown] [image not shown] end")

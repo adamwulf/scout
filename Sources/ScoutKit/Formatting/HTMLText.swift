@@ -7,8 +7,9 @@ extension OutputFormatter {
     /// as markdown links. Text without tags keeps its line breaks but still has entities decoded,
     /// because escaped one-line replies such as `It&#39;s` contain no tags.
     ///
-    /// Images are rendered where they appear, each `src` once. Help Scout inline images (see `InlineImage`)
-    /// become markdown images of the downloaded file or the CDN URL. Other images are never linked, because a
+    /// Images are rendered everywhere they appear. Help Scout inline images (see `InlineImage`)
+    /// become markdown images of the downloaded file or the CDN URL, and text after one starts a new paragraph
+    /// (a new line inside a list). Other images are never linked, because a
     /// markdown viewer would load them and could notify the sender: http(s) images become
     /// `[external image not fetched: host]`, other sources `[image not shown]`, and zero-size tracking pixels
     /// disappear.
@@ -109,8 +110,13 @@ extension OutputFormatter {
             private var afterBullet = false
             private var links: [(href: String?, start: Int)] = []
             private let inlineImagePaths: [String: String]
-            private var shownImageSources: Set<String> = []
+            private var listedImageSources: Set<String> = []
             private(set) var inlineImages: [InlineImage] = []
+            /// True after an inline image until the next text or link outside any link starts a new paragraph, so
+            /// a following `--` or `==` line (such as a `-- ` signature delimiter) is not a setext underline that
+            /// turns the image into a heading. Waiting for that text keeps a link around the image (and any text
+            /// it also holds) whole, and keeps a `<br>` after the image from adding a second line break inside a list.
+            private var paragraphAfterImage = false
 
             init(inlineImagePaths: [String: String]) {
                 self.inlineImagePaths = inlineImagePaths
@@ -130,10 +136,17 @@ extension OutputFormatter {
                 } else if scalar.properties.isWhitespace {
                     pendingSpace = true
                 } else {
+                    startParagraphAfterImage()
                     flushSpace()
                     afterBullet = false
                     output.append(scalar)
                 }
+            }
+
+            private mutating func startParagraphAfterImage() {
+                guard paragraphAfterImage, links.isEmpty else { return }
+                paragraphAfterImage = false
+                paragraphBreak()
             }
 
             mutating func handle(_ tag: Tag) {
@@ -165,6 +178,7 @@ extension OutputFormatter {
                     pendingSpace = true
                 } else if name == "a" {
                     if tag.isClosing { closeLink() } else {
+                        startParagraphAfterImage()
                         flushSpace()
                         links.append((href: tag.attributes["href"], start: output.count))
                     }
@@ -174,11 +188,12 @@ extension OutputFormatter {
             }
 
             private mutating func image(_ attributes: [String: String]) {
-                guard let source = HTMLText.visibleImageSource(attributes), shownImageSources.insert(source).inserted else { return }
+                guard let source = HTMLText.visibleImageSource(attributes) else { return }
                 if let inline = InlineImage(source: source) {
-                    inlineImages.append(inline)
+                    if listedImageSources.insert(source).inserted { inlineImages.append(inline) }
                     write(Markdown.link(label: inline.filename, fallback: "image",
                                         destination: inlineImagePaths[source] ?? inline.url.absoluteString, isImage: true))
+                    paragraphAfterImage = true
                 } else if let url = URL(string: source), ["http", "https"].contains(url.scheme?.lowercased()),
                           let host = url.host(), !host.isEmpty {
                     write("[external image not fetched: \(host.lowercased())]")
@@ -219,7 +234,11 @@ extension OutputFormatter {
                 if label.isEmpty {
                     write(href)
                 } else if label.contains("\n") {
+                    // The href belongs to the label, so a label ending in an image still breaks after the href.
+                    let afterImage = paragraphAfterImage
+                    paragraphAfterImage = false
                     write(" (\(href))")
+                    paragraphAfterImage = afterImage
                 } else {
                     output.insert("[", at: start)
                     output.append(contentsOf: "](\(href))".unicodeScalars)

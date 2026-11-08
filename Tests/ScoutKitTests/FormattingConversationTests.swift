@@ -252,7 +252,13 @@ final class FormattingConversationTests: XCTestCase {
         - Attachments: invoice.pdf (ID 11, application/pdf), \(appleMailName) (inline image), \(canaryName) (inline image)
 
         Two screenshots:
-        ![\(appleMailName)](files/inline-aaa-\(appleMailName))![\(canaryName)](\(canary)) [external image not fetched: tracker.example.com]
+        ![\(appleMailName)](files/inline-aaa-\(appleMailName))
+
+        ![\(canaryName)](\(canary))
+
+        ![\(appleMailName)](files/inline-aaa-\(appleMailName))
+
+        [external image not fetched: tracker.example.com]
 
         [invoice.pdf](files/11-invoice.pdf)
 
