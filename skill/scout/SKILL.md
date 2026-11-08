@@ -16,7 +16,7 @@ Credentials: `SCOUT_APP_ID` and `SCOUT_APP_SECRET`, optional `SCOUT_ACCESS_TOKEN
 ```sh
 scout ro inboxes --format json
 scout ro list --inbox 123 --status all --format json
-scout ro show 987654
+scout ro show 987654 --format md
 scout ro search 'email:"jane+test@my-company.com"' --format json
 scout ro search 'subject:refund AND status:active'
 scout ro search 'contactId:456'
@@ -27,6 +27,8 @@ scout ro templates --inbox 123
 ```
 
 IDs are API IDs, not conversation numbers. Search requires field:value syntax, covers every inbox/status unless restricted in the query, and ignores the default inbox. Quote email values: plus and hyphen are reserved query characters. For an Allume user ID, use Allume to obtain the email, then search Scout by email; do not guess Help Scout IDs.
+
+List formats are `table` (default), `json`, `jsonl`, and `id`. Detail formats are `md` (Markdown, default for `show` and `customer`) and `json`. `template` also supports `raw`, its default.
 
 Lists return one complete page. Follow the `Next:` command on stderr until done; it preserves filters and output format. JSON list output contains items and continuation metadata. JSONL and ID output contain rows only. `show` reads every thread page and labels draft/published/hidden/review states. JSON retains original HTML.
 

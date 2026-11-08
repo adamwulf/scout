@@ -65,7 +65,7 @@ Tokens obtained with app credentials are cached at `~/.config/scout/token.json`,
 ```sh
 scout ro inboxes --format table
 scout ro list --inbox 123 --status all --format json
-scout ro show 987654 --format markdown
+scout ro show 987654 --format md
 scout ro search 'subject:refund AND status:active'
 scout ro search 'email:"jane+test@my-company.com"'
 scout ro search 'contactId:456'
@@ -83,7 +83,7 @@ Commands take **API IDs**, not the `#number` displayed next to a conversation. T
 
 Lists return **one complete API page**. When more results exist, stderr prints a runnable `Next:` command preserving filters, output format and `--env-file`. Run that command to continue. Conversations/search/customers use `--cursor`; inboxes use `--page`. If a cursor is rejected, restart without it. `show` automatically fetches all thread pages and displays threads oldest first, including notes, activities and clearly labeled drafts.
 
-List formats are `table` (default), `json`, `jsonl`, and `id`. JSON lists have `items`, `nextCursor` and `nextPage`; JSONL/ID contain only rows. Detail formats are `markdown` (default) and `json`. JSON preserves original HTML and optional API fields; Markdown provides a small HTML-to-text conversion. Hints and errors go to stderr.
+List formats are `table` (default), `json`, `jsonl`, and `id`. JSON lists have `items`, `nextCursor` and `nextPage`; JSONL/ID contain only rows. Detail formats are `md` (default) and `json`. JSON preserves original HTML and optional API fields; Markdown provides a small HTML-to-text conversion. Hints and errors go to stderr.
 
 ## Draft and send replies
 
@@ -114,7 +114,7 @@ scout draft 987654 --body-file reply.html --html
 scout draft 987654 --template 555
 ```
 
-`templates` and `template` use `--inbox` or `SCOUT_INBOX_ID`. `template` defaults to raw email HTML, without a title or JSON wrapper; it also supports `--format markdown|json`. A raw export adds a final newline only if missing.
+`templates` and `template` use `--inbox` or `SCOUT_INBOX_ID`. `template` defaults to raw email HTML, without a title or JSON wrapper; it also supports `--format md|json`. A raw export adds a final newline only if missing.
 
 Direct `--template` use already treats the saved reply as HTML, so do not combine it with `--html`. Scout does not implement Help Scout's variable engine. Bodies from every source are rejected if they contain unresolved `{%...%}` markers. Export, replace variables, and submit the edited file. Help Scout documents markers such as `{%customer.firstName,fallback=there%}`.[^5]
 

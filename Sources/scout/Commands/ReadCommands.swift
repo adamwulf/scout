@@ -106,7 +106,7 @@ struct Template: ReadOnlyCommand {
     @OptionGroup var connection: ConnectionOptions
     @Argument(help: "Saved reply ID.") var id: Int
     @Option(help: "Inbox ID; defaults to SCOUT_INBOX_ID.") var inbox: Int?
-    @Option(help: "Output format: raw, markdown, json.") var format: DetailFormat = .raw
+    @Option(help: "Output format: raw, md, json.") var format: DetailFormat = .raw
     mutating func validate() throws {
         try ScoutClient.positive(id, name: "Template ID")
         if let inbox { try ScoutClient.positive(inbox, name: "Inbox ID") }
