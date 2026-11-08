@@ -67,7 +67,7 @@ enum HTTPFailure {
             summary = "Help Scout had a server error for \(endpoint)."
                 + (method == "GET"
                     ? " Try again shortly."
-                    : " The write may have succeeded; inspect the conversation before retrying.")
+                    : " The write may have succeeded; inspect \(writeTarget(path)) before retrying.")
         default:
             summary = "Help Scout rejected \(endpoint)."
         }
@@ -98,6 +98,10 @@ enum HTTPFailure {
             return "Scout did not retry; try again after \(seconds) seconds."
         }
         return "Scout did not retry; wait a minute before trying again."
+    }
+
+    static func writeTarget(_ path: String) -> String {
+        path.contains("/saved-replies") ? "the inbox's saved replies" : "the conversation"
     }
 
     /// A 301 for a GET of a conversation reports a merge only when `Location` resolves to an HTTPS conversation

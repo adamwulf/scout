@@ -75,6 +75,110 @@ final class ScoutClientTests: XCTestCase {
         XCTAssertEqual(requests[2].url.path, "/v2/customers/42")
     }
 
+    func testTemplateCreateAllowsVariablesAndAcceptsEmptySuccess() async throws {
+        let (client, transport) = client([.json(201, "")])
+        let text = try ReplyBody.prepareTemplate("Hi {%customer.firstName%} & <friend>\nThanks", html: false)
+        let receipt = try await client.createTemplate(inbox: 7, name: "Greeting", text: text, chatText: "Hi {%customer.firstName%}")
+        XCTAssertEqual(receipt.operation, "created")
+        XCTAssertNil(receipt.templateID)
+        XCTAssertEqual(receipt.inboxID, 7)
+        let requests = await transport.requests
+        XCTAssertEqual(requests.count, 1)
+        XCTAssertEqual(requests[0].method, "POST")
+        XCTAssertEqual(requests[0].url.path, "/v2/mailboxes/7/saved-replies")
+        let body = try JSONDecoder().decode(JSONValue.self, from: XCTUnwrap(requests[0].body))
+        XCTAssertEqual(body, .object([
+            "name": .string("Greeting"),
+            "text": .string("Hi {%customer.firstName%} &amp; &lt;friend&gt;<br>Thanks"),
+            "chatText": .string("Hi {%customer.firstName%}")
+        ]))
+        XCTAssertThrowsError(try ReplyBody.prepare(text, html: true))
+        let json = try JSONDecoder().decode(JSONValue.self, from: Data(OutputFormatter.receipt(receipt).utf8))
+        XCTAssertEqual(json["templateID"], .null)
+    }
+
+    func testTemplateChatCreationAndListing() async throws {
+        let (client, transport) = client([.json(201, "", headers: ["Resource-ID": "10"]), .json(200, "[]")])
+        let receipt = try await client.createTemplate(inbox: 7, name: "Chat", chatText: "Hi")
+        XCTAssertEqual(receipt.templateID, 10)
+        _ = try await client.templates(inbox: 7, includeChat: true)
+        let requests = await transport.requests
+        let body = try JSONDecoder().decode(JSONValue.self, from: XCTUnwrap(requests[0].body))
+        XCTAssertNil(body["text"].string)
+        XCTAssertEqual(requests[1].url.query, "includeChatReplies=true")
+    }
+
+    func testTemplateUpdatesPreserveOmittedFields() async throws {
+        for changes in [("Renamed", nil, nil), (nil, "<p>Updated {%customer.firstName%}</p>", nil), (nil, nil, "New chat")] as [(String?, String?, String?)] {
+            let (client, transport) = client([
+                .json(200, #"{"id":10,"name":"Greeting","text":"<p>Hello</p>","chatText":"Hello chat"}"#), .json(204, "")
+            ])
+            let receipt = try await client.updateTemplate(10, inbox: 7, name: changes.0, text: changes.1, chatText: changes.2)
+            XCTAssertEqual(receipt.operation, "updated")
+            XCTAssertEqual(receipt.templateID, 10)
+            let requests = await transport.requests
+            XCTAssertEqual(requests.map(\.method), ["GET", "PUT"])
+            XCTAssertEqual(requests.map(\.url.path), Array(repeating: "/v2/mailboxes/7/saved-replies/10", count: 2))
+            let body = try JSONDecoder().decode(JSONValue.self, from: XCTUnwrap(requests[1].body))
+            XCTAssertEqual(body, .object([
+                "name": .string(changes.0 ?? "Greeting"), "text": .string(changes.1 ?? "<p>Hello</p>"),
+                "chatText": .string(changes.2 ?? "Hello chat")
+            ]))
+        }
+    }
+
+    func testTemplateDeleteAcceptsEmptySuccess() async throws {
+        let (client, transport) = client([.json(204, "")])
+        let receipt = try await client.deleteTemplate(10, inbox: 7)
+        XCTAssertEqual(receipt.operation, "deleted")
+        let requests = await transport.requests
+        XCTAssertEqual(requests.count, 1)
+        XCTAssertEqual(requests[0].method, "DELETE")
+        XCTAssertEqual(requests[0].url.path, "/v2/mailboxes/7/saved-replies/10")
+        XCTAssertNil(requests[0].body)
+    }
+
+    func testTemplateInvalidInputsDoNotMakeRequests() async throws {
+        let (client, transport) = client([])
+        do { _ = try await client.createTemplate(inbox: 0, name: "Hi", text: "Hi"); XCTFail() } catch {}
+        do { _ = try await client.createTemplate(inbox: 7, name: " ", text: "Hi"); XCTFail() } catch {}
+        do { _ = try await client.createTemplate(inbox: 7, name: "Hi"); XCTFail() } catch {}
+        do { _ = try await client.updateTemplate(10, inbox: 7); XCTFail() } catch {}
+        do { _ = try await client.updateTemplate(10, inbox: 7, text: " "); XCTFail() } catch {}
+        do { _ = try await client.updateTemplate(0, inbox: 7, name: "Hi"); XCTFail() } catch {}
+        do { _ = try await client.deleteTemplate(10, inbox: -1); XCTFail() } catch {}
+        do { _ = try await client.deleteTemplate(0, inbox: 7); XCTFail() } catch {}
+        let requests = await transport.requests
+        XCTAssertTrue(requests.isEmpty)
+    }
+
+    func testTemplateWriteFailuresAreNotReplayed() async throws {
+        for failure in [ScriptedHTTPTransport.Reply.failure(URLError(.timedOut)), .json(500), .json(403), .json(404)] {
+            for operation in ["create", "update", "delete"] {
+                let replies: [ScriptedHTTPTransport.Reply] = operation == "update"
+                    ? [.json(200, #"{"name":"Original","text":"Hello"}"#), failure] : [failure]
+                let (client, transport) = client(replies)
+                do {
+                    switch operation {
+                    case "create": _ = try await client.createTemplate(inbox: 7, name: "Hi", text: "Hi")
+                    case "update": _ = try await client.updateTemplate(10, inbox: 7, name: "Hi")
+                    default: _ = try await client.deleteTemplate(10, inbox: 7)
+                    }
+                    XCTFail()
+                } catch {
+                    XCTAssertTrue(error is ScoutError)
+                    XCTAssertFalse(error.localizedDescription.contains("inspect the conversation"))
+                }
+                let requests = await transport.requests
+                XCTAssertEqual(requests.count, replies.count)
+            }
+        }
+        let (client, transport) = client([.json(404)])
+        do { _ = try await client.updateTemplate(10, inbox: 7, name: "Hi"); XCTFail() } catch {}
+        let requests = await transport.requests
+        XCTAssertEqual(requests.map(\.method), ["GET"])
+    }
+
     func testDraftPreservesStatusAndPlainTextIsEscaped() async throws {
         let (client, transport) = client([.json(200, conversation), .json(201, "", headers: ["Resource-Id": "90"])])
         let receipt = try await client.createDraft(conversation: 12, content: .text("Thanks & <done>\nOK", html: false))

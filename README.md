@@ -60,6 +60,8 @@ An explicit `SCOUT_ACCESS_TOKEN` from either source takes precedence. If rejecte
 
 Tokens obtained with app credentials are cached at `~/.config/scout/token.json`, with directory mode 0700 and file mode 0600. Scout reuses them until shortly before expiry and renews once on a 401. `ro` means no Help Scout content changes; reads may create or update this local token cache.
 
+Every read command is also available at the root: `scout templates` and `scout ro templates` run the same implementation with the same options and output. The `ro` group rejects write commands.
+
 ## Read and search
 
 ```sh
@@ -131,7 +133,25 @@ scout draft 987654 --template 555
 
 `templates` and `template` use `--inbox` or `SCOUT_INBOX_ID`. `template` defaults to raw email HTML, without a title or JSON wrapper; it also supports `--format md|json`. A raw export adds a final newline only if missing.
 
-Direct `--template` use already treats the saved reply as HTML, so do not combine it with `--html`. Scout does not implement Help Scout's variable engine. Bodies from every source are rejected if they contain unresolved `{%...%}` markers. Export, replace variables, and submit the edited file. Help Scout documents markers such as `{%customer.firstName,fallback=there%}`.[^5]
+Create, update, and delete saved replies with the following root-only commands. They create with POST,[^8] update with PUT,[^9] and delete with DELETE.[^10]
+
+```sh
+scout template-create --inbox 123 --name 'Greeting' --body 'Hi {%customer.firstName,fallback=there%}!'
+scout template-update 555 --inbox 123 --name 'Updated greeting'
+scout template-update 555 --inbox 123 --body-file reply.html --html
+scout template-delete 555 --inbox 123
+# Chat content is plain text; include chat-only replies when listing:
+scout template-create --inbox 123 --name 'Chat greeting' --chat-text 'Hi there!'
+scout templates --inbox 123 --include-chat --format json
+```
+
+All three write commands use `--inbox` or `SCOUT_INBOX_ID` and return a JSON receipt. Create requires `--name` and an email body or `--chat-text` (or both). Choose `--body` or `--body-file`, including `--body-file -` for standard input. Email bodies are escaped plain text unless `--html` is specified; saved-reply variables are allowed. The library's `text` argument takes email HTML directly.
+
+Update accepts any combination of name, email body, and chat text. It reads the current saved reply and preserves fields you omit when submitting the PUT request. Empty fields are rejected; clearing an individual channel is not supported. Avoid simultaneous edits to the same saved reply, since the read and write are separate requests. Use `template --format json` to inspect both email and chat content.
+
+Create may succeed without returning an ID; its receipt then has `templateID: null`. List templates to find the new reply instead of creating it again. After a timeout or server error on any write, inspect the inbox's saved replies before retrying. These commands have offline test coverage; live saved-reply writes have not been verified.
+
+Direct `--template` use already treats the saved reply as HTML, so do not combine it with `--html`. Scout does not implement Help Scout's variable engine. When drafting or sending, bodies from every source are rejected if they contain unresolved `{%...%}` markers. Export, replace variables, and submit the edited file. Help Scout documents markers such as `{%customer.firstName,fallback=there%}`.[^5]
 
 ## Library usage
 
@@ -152,7 +172,7 @@ The library never prints. `ScoutHTTPClient` accepts an injected transport, token
 
 ## Initial release limits and verification
 
-This version supports auth, inboxes, conversation read/search/status changes, customer read/filter, saved-reply read/use, draft creation and new reply sending. Attachments, customer editing, new outbound conversations, local template storage, browser OAuth, scheduling, publishing existing drafts and multiple accounts are deferred. The implementation plan and API research are in [PLAN.md](PLAN.md).
+This version supports auth, inboxes, conversation read/search/status changes, customer read/filter, saved-reply read/create/update/delete/use, draft creation and new reply sending. Attachments, customer editing, new outbound conversations, local template storage, browser OAuth, scheduling, publishing existing drafts and multiple accounts are deferred. The implementation plan and API research are in [PLAN.md](PLAN.md).
 
 Tests use fake HTTP responses and isolated configuration fixtures. **No live Help Scout API call or real message send has been used to validate this release.** First try `auth status`, `ro inboxes`, `ro list`, and `ro show` with your credentials. Verify drafting and status preservation on an explicitly chosen test conversation before regular use. On that test conversation, try `mark pending`, `mark closed`, and `mark active`, each followed by its API ID; confirm each status with `ro show`, then restore its original status with `mark <original-status> <id>`. Test `mark spam` separately with a disposable sender, then use Help Scout’s **Unmark as Spam** action for cleanup; the update API documentation does not specify whether setting `active` also reverses sender filtering.
 
@@ -163,3 +183,7 @@ Tests use fake HTTP responses and isolated configuration fixtures. **No live Hel
 [^5]: [Help Scout variables](https://docs.helpscout.com/article/468-variables)
 [^6]: [Update conversation](https://developer.helpscout.com/mailbox-api/endpoints/conversations/update/)
 [^7]: [Help Scout spam filtering and retention](https://docs.helpscout.com/article/307-manage-spam-and-unwanted-email)
+
+[^8]: [Create saved reply](https://developer.helpscout.com/mailbox-api/endpoints/inboxes/saved_Replies/saved-replies-create/)
+[^9]: [Update saved reply](https://developer.helpscout.com/mailbox-api/endpoints/inboxes/saved_Replies/saved-replies-update/)
+[^10]: [Delete saved reply](https://developer.helpscout.com/mailbox-api/endpoints/inboxes/saved_Replies/saved-replies-delete/)

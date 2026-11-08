@@ -6,7 +6,9 @@ struct Scout: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "scout", abstract: "Work with Help Scout inboxes.", version: "0.1.0",
         subcommands: [Auth.self, Inboxes.self, ListConversations.self, Show.self, Search.self,
-                      Customers.self, Customer.self, Templates.self, Template.self, Draft.self, Send.self, Mark.self, ReadOnly.self]
+                      Customers.self, Customer.self, Templates.self, Template.self,
+                      TemplateCreate.self, TemplateUpdate.self, TemplateDelete.self,
+                      Draft.self, Send.self, Mark.self, ReadOnly.self]
     )
 }
 

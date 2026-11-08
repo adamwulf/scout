@@ -92,11 +92,12 @@ struct Templates: ReadOnlyCommand {
     static let configuration = CommandConfiguration(abstract: "List email saved replies in an inbox.")
     @OptionGroup var connection: ConnectionOptions
     @OptionGroup var output: ListOptions
+    @Flag(help: "Include chat-only saved replies and chat previews.") var includeChat = false
     @Option(help: "Inbox ID; defaults to SCOUT_INBOX_ID.") var inbox: Int?
     mutating func validate() throws { if let inbox { try ScoutClient.positive(inbox, name: "Inbox ID") } }
     func run() async throws {
         let context = try connection.context()
-        let result = try await context.client.templates(inbox: context.configuration.requireInbox(override: inbox))
+        let result = try await context.client.templates(inbox: context.configuration.requireInbox(override: inbox), includeChat: includeChat)
         CLI.output(try OutputFormatter.list(result, kind: .template, format: output.format))
     }
 }
