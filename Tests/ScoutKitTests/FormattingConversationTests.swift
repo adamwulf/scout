@@ -72,6 +72,7 @@ final class FormattingConversationTests: XCTestCase {
 
         ### 1. Customer message
 
+        - Thread ID: 1
         - Author: Jane Doe <jane@example.com> (customer)
         - Type: customer
         - State: published
@@ -83,6 +84,7 @@ final class FormattingConversationTests: XCTestCase {
 
         ### 2. Reply (sent)
 
+        - Thread ID: 2
         - Author: Adam W <adam@example.com> (user)
         - Type: message
         - State: published
@@ -95,6 +97,7 @@ final class FormattingConversationTests: XCTestCase {
 
         ### 3. Activity
 
+        - Thread ID: 3
         - Author: Adam W <adam@example.com> (user)
         - Type: lineitem
         - State: published
@@ -103,6 +106,7 @@ final class FormattingConversationTests: XCTestCase {
 
         ### 4. DRAFT reply (not sent)
 
+        - Thread ID: 4
         - Author: Adam W <adam@example.com> (user)
         - Type: message
         - State: draft
@@ -114,6 +118,7 @@ final class FormattingConversationTests: XCTestCase {
 
         ### 5. Note
 
+        - Thread ID: 5
         - Author: Adam W <adam@example.com> (user)
         - Type: note
         - State: published
@@ -166,6 +171,7 @@ final class FormattingConversationTests: XCTestCase {
         XCTAssertTrue(output.contains("""
         ### 1. DRAFT reply (not sent)
 
+        - Thread ID: 1
         - Author: Adam W <adam@example.com> (user)
         - Type: message
         - State: draft

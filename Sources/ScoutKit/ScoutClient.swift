@@ -38,10 +38,16 @@ public struct TemplateReceipt: Codable, Sendable {
 
 /// Library facade for the supported workflows. Lists return a complete server page.
 public struct ScoutClient: Sendable {
-    private let http: ScoutHTTPClient
+    let http: ScoutHTTPClient
+    let clock: @Sendable () -> Date
 
-    public init(http: ScoutHTTPClient) { self.http = http }
-    public init(configuration: ScoutConfiguration) { self.http = ScoutHTTPClient(configuration: configuration) }
+    public init(http: ScoutHTTPClient, clock: @escaping @Sendable () -> Date = { Date() }) {
+        self.http = http
+        self.clock = clock
+    }
+    public init(configuration: ScoutConfiguration) {
+        self.init(http: ScoutHTTPClient(configuration: configuration))
+    }
 
     public func identity() async throws -> JSONValue {
         try await get("/v2/users/me")
@@ -198,14 +204,23 @@ public struct ScoutClient: Sendable {
     }
 
     private func createReply(conversation id: Int, content: ReplyContent, draft: Bool, status: ReplyStatus?) async throws -> ReplyReceipt {
+        let literal = try Self.literalReply(content)
+        let conversation = try await conversation(id)
+        let text = try await replyText(content, literal: literal, conversation: conversation)
+        return try await postReply(conversation: conversation, text: text, draft: draft, status: status)
+    }
+
+    static func literalReply(_ content: ReplyContent) throws -> String? {
         // Validate literal content before any HTTP request; templates need the conversation's inbox.
         let literal: String?
         switch content {
         case .text(let text, let html): literal = try ReplyBody.prepare(text, html: html)
         case .template(let templateID): try Self.positive(templateID, name: "Template ID"); literal = nil
         }
-        let conversation = try await conversation(id)
-        let customerID = try conversation["primaryCustomer"].requiredID()
+        return literal
+    }
+
+    func replyText(_ content: ReplyContent, literal: String?, conversation: JSONValue) async throws -> String {
         let text: String
         if let literal { text = literal }
         else if case .template(let templateID) = content {
@@ -217,6 +232,12 @@ public struct ScoutClient: Sendable {
             text = try ReplyBody.prepare(body, html: true)
         } else { throw ScoutError.invalidInput("A reply body is required.") }
 
+        return text
+    }
+
+    func postReply(conversation: JSONValue, text: String, draft: Bool, status: ReplyStatus?) async throws -> ReplyReceipt {
+        let id = try conversation.requiredID()
+        let customerID = try conversation["primaryCustomer"].requiredID()
         let targetStatus: String
         if let status { targetStatus = status.rawValue }
         else {

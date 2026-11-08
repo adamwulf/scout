@@ -84,6 +84,30 @@ final class CommandTests: XCTestCase {
         XCTAssertEqual(send.status, .closed)
     }
 
+    func testDraftActionsAndExplicitSelection() throws {
+        for options in [["--send"], ["--body", "Hi"], ["--body-file", "-", "--html"], ["--template", "7"]] {
+            for selection: [String] in [[], ["--thread", "90"]] {
+                let arguments = ["draft", "12"] + options + selection
+                let draft = try XCTUnwrap(Scout.parseAsRoot(arguments) as? Draft)
+                XCTAssertEqual(draft.send, options == ["--send"])
+                XCTAssertEqual(draft.thread, selection.isEmpty ? nil : 90)
+                XCTAssertThrowsError(try Scout.parseAsRoot(["ro"] + arguments))
+            }
+        }
+        for options in [[], ["--send", "--body", "Hi"], ["--send", "--body-file", "-"],
+                        ["--send", "--template", "1"], ["--send", "--html"],
+                        ["--body", "Hi", "--body-file", "missing.txt"], ["--body-file", "-", "--template", "1"],
+                        ["--body", "Hi", "--template", "1"], ["--template", "1", "--html"],
+                        ["--send", "--thread", "0"], ["--send", "--thread", "-1"],
+                        ["--send", "--thread", "abc"], ["--thread", "90"],
+                        ["--send", "--status", "closed"], ["--delete"], ["--send", "--delete"]] {
+            XCTAssertThrowsError(try Scout.parseAsRoot(["draft", "12"] + options), "\(options)")
+        }
+        XCTAssertThrowsError(try Scout.parseAsRoot(["draft", "0", "--send"]))
+        XCTAssertThrowsError(try Scout.parseAsRoot(["send", "12", "--send"]))
+        XCTAssertThrowsError(try Scout.parseAsRoot(["send", "12", "--body-file", "-", "--thread", "90"]))
+    }
+
     func testMarkdownFormatUsesMD() throws {
         for prefix: [String] in [[], ["ro"]] {
             let show = try XCTUnwrap(Scout.parseAsRoot(prefix + ["show", "12", "--format", "md"]) as? Show)

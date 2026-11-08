@@ -94,14 +94,21 @@ scout draft 987654 --body 'Thanks for reporting this. We are investigating.'
 scout draft 987654 --body-file reply.txt
 scout draft 987654 --body-file reply.html --html
 scout draft 987654 --body-file - < reply.txt
+scout draft 987654 --send
+scout draft 987654 --thread 123456 --body-file reply.txt
+scout draft 987654 --thread 123456 --send
 scout send 987654 --body-file reply.txt --status closed
 ```
 
-Choose exactly one of `--body`, `--body-file` or `--template`. Plain text is trimmed at the outer edges, HTML-escaped and converted to HTML line breaks. Use `--html` for intentional HTML. Empty or invalid UTF-8 bodies fail. Reading stdin is explicit (`--body-file -`) and is rejected when stdin is a terminal.
+For `draft`, choose exactly one action: `--send` or one body source (`--body`, `--body-file`, `--template`). `--send` cannot be combined with body options or `--html`. The separate `send` command always requires one body source. Plain text is trimmed at the outer edges, HTML-escaped and converted to HTML line breaks. Use `--html` for intentional HTML. Empty or invalid UTF-8 bodies fail. Reading stdin is explicit (`--body-file -`) and is rejected when stdin is a terminal.
 
-`draft` creates a server-side reply draft and submits the conversation's existing status. `send` immediately creates a **new** reply thread; its default status is `active`, which can reopen a closed conversation. It does not publish a previously created draft. Finish existing drafts in Help Scout. Use `--status closed`, `pending`, or `spam` when appropriate. Reply creation and its draft/status fields are documented by Help Scout.[^2]
+With body input, `draft` creates a server-side reply draft if none exists, preserving the conversation's status.[^2] If one draft exists, it updates that draft's text and leaves recipients, attachments, and any schedule untouched. Updating uses Help Scout's thread editing endpoint and requires administrator access or enabled thread editing.[^11] If multiple drafts exist, use `--thread ID`; `scout ro show` displays thread IDs. An explicit ID must belong to a draft in that conversation; it never falls back to creation. Only reply drafts (API type `message`) are supported; edit or send forward drafts in Help Scout. Draft deletion is deferred because no public draft-thread deletion endpoint was found; delete drafts in Help Scout.
 
-Reply writes print a JSON receipt containing `conversationID`, `threadID` and `draft`. If a write times out or returns a server error, inspect the conversation before retrying: it may already have succeeded. Scout never automatically retries an uncertain write. A definite 401 with app credentials can be retried once after token renewal.
+`draft --send` sends the selected existing draft without rewriting its body. Missing drafts, empty content, and unresolved variables fail before sending. An unscheduled draft is scheduled for 24 hours ahead with cancellation on a customer reply and sent as the authenticated user, then immediately published; an already scheduled draft is published directly, preserving its existing schedule and sender settings.[^12][^13][^14] This is a two-request operation: **if publication fails or the process stops between requests, a future send can remain queued**. If a publication response is lost, the reply may already have sent. Errors describe the failed step and possible outcome. Inspect the conversation and cancel any remaining schedule in Help Scout before retrying. Scout does not automatically retry uncertain writes or roll back schedules. `draft --send` offers no `--status` option and issues no separate status change; Help Scout may apply pending draft actions on publication.
+
+`send` immediately creates a **new** reply thread; its default status is `active`, which can reopen a closed conversation. Use `--status closed`, `pending`, or `spam` when appropriate.[^2]
+
+`draft` prints a JSON receipt containing `conversationID`, `threadID`, and `operation` (`created`, `updated`, or `sent`). `send` receipts contain `conversationID`, `threadID`, and `draft: false`. Creation may succeed without returning a thread ID; inspect the conversation instead of repeating the write. If a write times out or returns a server error, inspect the conversation before retrying: it may already have succeeded. Scout never automatically retries an uncertain write. A definite 401 with app credentials can be retried once after token renewal.
 
 Merged conversations stop with the destination ID; inspect it and rerun explicitly. Rate limits report a retry delay without automatic replay. Locked conversations and permission errors include an explanation.
 
@@ -172,7 +179,7 @@ The library never prints. `ScoutHTTPClient` accepts an injected transport, token
 
 ## Initial release limits and verification
 
-This version supports auth, inboxes, conversation read/search/status changes, customer read/filter, saved-reply read/create/update/delete/use, draft creation and new reply sending. Attachments, customer editing, new outbound conversations, local template storage, browser OAuth, scheduling, publishing existing drafts and multiple accounts are deferred. The implementation plan and API research are in [PLAN.md](PLAN.md).
+This version supports auth, inboxes, conversation read/search/status changes, customer read/filter, saved-reply read/create/update/delete/use, draft creation/update/publication and new reply sending. Attachment editing, customer editing, new outbound conversations, local template storage, browser OAuth, general scheduling, draft deletion and multiple accounts are deferred. The original implementation plan is in [PLAN.md](PLAN.md); the draft lifecycle plan and API research are in [DRAFT-LIFECYCLE-PLAN.md](DRAFT-LIFECYCLE-PLAN.md).
 
 Tests use fake HTTP responses and isolated configuration fixtures. **No live Help Scout API call or real message send has been used to validate this release.** First try `auth status`, `ro inboxes`, `ro list`, and `ro show` with your credentials. Verify drafting and status preservation on an explicitly chosen test conversation before regular use. On that test conversation, try `mark pending`, `mark closed`, and `mark active`, each followed by its API ID; confirm each status with `ro show`, then restore its original status with `mark <original-status> <id>`. Test `mark spam` separately with a disposable sender, then use Help Scout’s **Unmark as Spam** action for cleanup; the update API documentation does not specify whether setting `active` also reverses sender filtering.
 
@@ -187,3 +194,7 @@ Tests use fake HTTP responses and isolated configuration fixtures. **No live Hel
 [^8]: [Create saved reply](https://developer.helpscout.com/mailbox-api/endpoints/inboxes/saved_Replies/saved-replies-create/)
 [^9]: [Update saved reply](https://developer.helpscout.com/mailbox-api/endpoints/inboxes/saved_Replies/saved-replies-update/)
 [^10]: [Delete saved reply](https://developer.helpscout.com/mailbox-api/endpoints/inboxes/saved_Replies/saved-replies-delete/)
+[^11]: [Update thread](https://developer.helpscout.com/mailbox-api/endpoints/conversations/threads/update/)
+[^12]: [Update thread schedule](https://developer.helpscout.com/mailbox-api/endpoints/conversations/threads/schedule/update/)
+[^13]: [Publish thread schedule](https://developer.helpscout.com/mailbox-api/endpoints/conversations/threads/schedule/publish/)
+[^14]: [Schedule a reply to send later](https://docs.helpscout.com/article/1577-schedule-a-reply-to-send-later)

@@ -5,6 +5,32 @@ extension OutputFormatter {
     /// as markdown links. Text without tags keeps its line breaks but still has entities decoded,
     /// because escaped one-line replies such as `It&#39;s` contain no tags.
     enum HTMLText {
+        /// Checks actual body content without counting formatting tags or empty list bullets.
+        /// Images with a source count as content even when there is no text.
+        static func hasContent(_ input: String) -> Bool {
+            let scalars = Array(input.unicodeScalars)
+            var text = ""
+            var skipping: String?
+            var index = 0
+            while index < scalars.count {
+                if scalars[index] == "<", let tag = Tag.parse(scalars, at: index) {
+                    index = tag.end
+                    if let skipped = skipping {
+                        if tag.isClosing && tag.name == skipped { skipping = nil }
+                    } else if !tag.isClosing && !tag.isSelfClosing && skippedElements.contains(tag.name) {
+                        skipping = tag.name
+                    } else if !tag.isClosing && tag.name == "img",
+                              let source = tag.attributes["src"], !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        return true
+                    }
+                } else {
+                    if skipping == nil { text.unicodeScalars.append(scalars[index]) }
+                    index += 1
+                }
+            }
+            return !decodeEntities(text).unicodeScalars.allSatisfy { $0.properties.isWhitespace || $0 == "\u{200B}" }
+        }
+
         static func plainText(_ input: String) -> String {
             let normalized = TerminalText.multiline(input)
             let scalars = Array(normalized.unicodeScalars)

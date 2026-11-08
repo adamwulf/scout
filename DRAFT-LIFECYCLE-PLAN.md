@@ -4,10 +4,10 @@
 
 Extend the existing `scout draft` command to create or update and send a selected existing draft. Adam approved deferring deletion on 2026-11-08 because no documented public draft-thread deletion endpoint was found. Keep the executable thin and implement selection and HTTP workflows in ScoutKit. The user requested this sequence: plan file, one Sol agent plan review, implementation, then two independent Sol agent implementation reviews.
 
-- [ ] One Sol reviewer approves the plan and API feasibility.
-- [ ] Implement the agreed interface with offline selection, request, failure, and CLI parsing coverage.
-- [ ] Update README.md and skill/scout/SKILL.md.
-- [ ] `swift test --disable-sandbox` and `swift build --disable-sandbox -c release` pass; help and invalid-input smoke checks pass without credentials.
+- [x] One Sol reviewer approves the plan and API feasibility.
+- [x] Implement the agreed interface with offline selection, request, failure, and CLI parsing coverage.
+- [x] Update README.md and skill/scout/SKILL.md.
+- [x] `swift test --disable-sandbox` and `swift build --disable-sandbox -c release` pass; help and invalid-input smoke checks pass without credentials.
 - [ ] Commit implementation; two independent Sol reviewers approve; fix realistic code issues and meaningful documentation issues and repeat code review after code fixes.
 - [ ] Retire reviewers and report commits, checks, and live API limitations.
 
@@ -51,7 +51,7 @@ If scheduling or publication fails or times out, stop without automatic retry, r
 
 ## Plan review outcome — 2026-11-08
 
-Sol reviewer `agent-86c51851` requested changes. Independent research likewise found no documented draft-thread deletion endpoint. Adam accepted schedule-then-publish sending with descriptive failure messages and approved deferring deletion. Selection types, HTML-empty validation, partial-send diagnostics, and limits on status guarantees are clarified above. Create/update/send implementation awaits plan re-review by this same reviewer.
+Sol reviewer `agent-86c51851` requested changes. Independent research likewise found no documented draft-thread deletion endpoint. Adam accepted schedule-then-publish sending with descriptive failure messages and approved deferring deletion. Selection types, HTML-empty validation, partial-send diagnostics, and limits on status guarantees are clarified above. The same Sol reviewer approved revised plan `c8d2af9`, confirming all six findings were addressed; the reviewer was retired after approval.
 
 Reviewer follow-up supplied by Adam identified the conversation-level `/draft: false` publication operation. The earlier claim that scheduling was always necessary was too broad. Its applicability to reply drafts and explicit thread selection remains unresolved; Adam subsequently accepted the thread-specific schedule/publish path, so this investigation is deferred.
 
@@ -80,6 +80,14 @@ Use injected transport and safe fixture data only; no real credentials, customer
 ## Scope limits
 
 No general scheduling command, separate status-change requests on existing-draft sends, attachment editing, recipient editing, new outbound conversations, bulk actions, UI automation, credential changes, or migration work. Normal read/write concurrency is not made atomic by the API; do not add speculative locking or retries. Live API behavior remains unverified until Adam selects a test conversation and authorizes live tests.
+
+## Implementation verification — 2026-11-08
+
+- Implemented library `saveDraft` and `sendDraft`, `draft --send`/`--thread`, operation receipts, and visible thread IDs in Markdown output.
+- Offline tests pass: 142 ScoutKit tests and 9 CLI tests. The initial run caught two formatting fixtures that needed the newly displayed thread IDs; these fixtures are updated and the full suite passes.
+- Release build passes. Release CLI help and conflicting send/body input were checked using `swift run --disable-sandbox --skip-build -c release scout` because direct execution of the local binary is blocked by the harness allow list.
+- Citation review: references and definitions match in the plan, README, and repository skill; changed API claims trace to the official sources below. No new source claims rely on the unresolved conversation-level publication behavior.
+- Two independent Sol implementation reviews remain pending. No live API calls or customer writes were performed.
 
 ## Sources
 
