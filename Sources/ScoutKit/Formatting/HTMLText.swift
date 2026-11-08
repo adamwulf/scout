@@ -112,10 +112,10 @@ extension OutputFormatter {
             private let inlineImagePaths: [String: String]
             private var listedImageSources: Set<String> = []
             private(set) var inlineImages: [InlineImage] = []
-            /// True after an inline image until the next text or link starts a new paragraph, so a following
-            /// `--` or `==` line (such as a `-- ` signature delimiter) is not a setext underline that turns the
-            /// image into a heading. Waiting for that text lets a link around the image close first, and keeps
-            /// a `<br>` after the image from adding a second line break inside a list.
+            /// True after an inline image until the next text or link outside any link starts a new paragraph, so
+            /// a following `--` or `==` line (such as a `-- ` signature delimiter) is not a setext underline that
+            /// turns the image into a heading. Waiting for that text keeps a link around the image (and any text
+            /// it also holds) whole, and keeps a `<br>` after the image from adding a second line break inside a list.
             private var paragraphAfterImage = false
 
             init(inlineImagePaths: [String: String]) {
@@ -144,7 +144,7 @@ extension OutputFormatter {
             }
 
             private mutating func startParagraphAfterImage() {
-                guard paragraphAfterImage else { return }
+                guard paragraphAfterImage, links.isEmpty else { return }
                 paragraphAfterImage = false
                 paragraphBreak()
             }
@@ -234,7 +234,11 @@ extension OutputFormatter {
                 if label.isEmpty {
                     write(href)
                 } else if label.contains("\n") {
+                    // The href belongs to the label, so a label ending in an image still breaks after the href.
+                    let afterImage = paragraphAfterImage
+                    paragraphAfterImage = false
                     write(" (\(href))")
+                    paragraphAfterImage = afterImage
                 } else {
                     output.insert("[", at: start)
                     output.append(contentsOf: "](\(href))".unicodeScalars)

@@ -158,6 +158,12 @@ final class FormattingHTMLTextTests: XCTestCase {
                        "[![\(canaryName)](\(canary))](https://company.com)\n\nJane Doe\nCEO")
         XCTAssertEqual(text(#"<a href="https://a.example"><img src="\#(canary)"></a><a href="https://b.example"><img src="\#(appleMail)"></a>"#),
                        "[![\(canaryName)](\(canary))](https://a.example)\n\n[![\(appleMailName)](\(appleMail))](https://b.example)")
+        XCTAssertEqual(text(#"<a href="https://www.company.com"><img src="\#(canary)"> www.company.com</a><br>-- <br>Sig"#),
+                       "[![\(canaryName)](\(canary)) www.company.com](https://www.company.com)\n\n--\nSig")
+        XCTAssertEqual(text(#"<a href="https://company.com">Company<br><img src="\#(canary)"></a><br>-- <br>Sig"#),
+                       "Company\n![\(canaryName)](\(canary)) (https://company.com)\n\n--\nSig")
+        XCTAssertEqual(text(#"Thanks<a href="https://company.com"><div><img src="\#(canary)"></div></a><div>--</div>"#),
+                       "Thanks\n![\(canaryName)](\(canary))\n(https://company.com)\n\n--")
         XCTAssertEqual(text(#"<ol><li>Open Settings<br><img src="\#(canary)"><br>Then click Save</li><li>Restart</li></ol>"#),
                        "- Open Settings\n![\(canaryName)](\(canary))\nThen click Save\n- Restart")
         XCTAssertEqual(text(#"<ul><li><p><img src="\#(canary)"><br>Caption</p></li><li>Next</li></ul>"#),
