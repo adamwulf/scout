@@ -64,4 +64,8 @@ scout mark pending 987654
 
 The syntax is `scout mark <status> <conversation-id>`, using an API ID. `closed` archives; `active` reopens. The change applies to the whole conversation, not an individual message. Success returns JSON with `conversationID` and `status`. This write is unavailable under `ro`. Merged IDs require an explicit rerun; inspect the conversation after a timeout or server error before retrying.
 
+Marking spam trains Help Scout to route future conversations from that sender to Spam; conversations left there are permanently purged 30 days after their last action. Use Help Scout’s **Unmark as Spam** action for accidental spam classifications.[^1] Test spam only with a disposable sender; do not assume API `mark active` reverses sender filtering.
+
 See README.md for supported formats, setup and current limits. Live behavior must be verified with credentials and an explicitly selected test conversation; automated tests are offline.
+
+[^1]: [Help Scout spam filtering and retention](https://docs.helpscout.com/article/307-manage-spam-and-unwanted-email)
