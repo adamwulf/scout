@@ -14,8 +14,8 @@ Credentials: `SCOUT_APP_ID` and `SCOUT_APP_SECRET`, optional `SCOUT_ACCESS_TOKEN
 ## Read
 
 ```sh
-scout ro inboxes --format json
-scout ro list --inbox 123 --status all --format json
+scout ro inboxes --format table
+scout ro list --inbox 123 --status all
 scout ro show 987654 --format md
 scout ro search 'email:"jane+test@my-company.com"' --format json
 scout ro search 'subject:refund AND status:active'

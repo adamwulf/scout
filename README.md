@@ -64,7 +64,7 @@ Tokens obtained with app credentials are cached at `~/.config/scout/token.json`,
 
 ```sh
 scout ro inboxes --format table
-scout ro list --inbox 123 --status all --format json
+scout ro list --inbox 123 --status all
 scout ro show 987654 --format md
 scout ro search 'subject:refund AND status:active'
 scout ro search 'email:"jane+test@my-company.com"'
