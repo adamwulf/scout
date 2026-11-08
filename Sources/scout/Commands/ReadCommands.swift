@@ -37,7 +37,7 @@ struct Show: ReadOnlyCommand {
     @OptionGroup var output: DetailOptions
     @Argument(help: "Help Scout API conversation ID (not its #number).") var id: Int
     @Option(name: [.customShort("o"), .customLong("output-dir")],
-            help: "Also download attachments into this directory; md output links them and embeds images. md only.")
+            help: "Also download attachments and Help Scout inline images into this directory; md output links them and embeds images. md only.")
     var outputDir: String?
     mutating func validate() throws {
         try ScoutClient.positive(id, name: "Conversation ID")
@@ -54,20 +54,21 @@ struct Show: ReadOnlyCommand {
         var download: AttachmentDownload?
         if let outputDir { download = try await client.downloadAttachments(in: view, to: outputDir) }
         CLI.output(try OutputFormatter.conversation(view.conversation, threads: view.threads, format: output.format,
-                                                    attachmentPaths: download?.paths ?? [:]))
+                                                    attachmentPaths: download?.attachmentPaths ?? [:],
+                                                    inlineImagePaths: download?.inlineImagePaths ?? [:]))
         if let download { try CLI.report(download) }
     }
 }
 
 struct Attachments: ReadOnlyCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Download a conversation's attachments into a directory.",
-        discussion: "Saves each file as <attachment ID>-<filename>, replacing an earlier download of the same attachment, and prints each saved path. Skips attachments Help Scout flags as viruses. Exits nonzero if any download fails.")
+        abstract: "Download a conversation's attachments and Help Scout inline images into a directory.",
+        discussion: "Saves each attachment as <attachment ID>-<filename> and each image pasted into a message body and hosted on Help Scout's CDN as inline-<hash>-<filename>, replacing an earlier download of the same file, and prints each saved path. Skips attachments Help Scout flags as viruses and never fetches images hosted elsewhere. Exits nonzero if any download fails.")
     @OptionGroup var connection: ConnectionOptions
     @Argument(help: "Help Scout API conversation ID.") var id: Int
     @Option(name: [.customShort("o"), .customLong("output-dir")], help: "Directory for the files; created if missing.")
     var outputDir: String
-    @Option(help: "Download only this attachment ID, as listed by show.") var attachment: Int?
+    @Option(help: "Download only this attachment ID, as listed by show, and no inline images.") var attachment: Int?
     mutating func validate() throws {
         try ScoutClient.positive(id, name: "Conversation ID")
         if let attachment { try ScoutClient.positive(attachment, name: "Attachment ID") }
@@ -77,7 +78,7 @@ struct Attachments: ReadOnlyCommand {
         let client = try connection.context().client
         let download = try await client.downloadAttachments(in: try await client.show(id), to: outputDir, only: attachment)
         CLI.output(OutputFormatter.attachmentPaths(download))
-        if download.isEmpty { CLI.hint("Conversation \(id) has no attachments.") }
+        if download.isEmpty { CLI.hint("Conversation \(id) has no attachments or Help Scout inline images.") }
         try CLI.report(download)
     }
 }
