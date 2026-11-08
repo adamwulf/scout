@@ -261,11 +261,18 @@ public struct ScoutClient: Sendable {
         return ResourcePage(items: items, nextPage: page < total ? page + 1 : nil)
     }
 
+    /// HAL responses omit embedded resources when there are none, so a page with no matches
+    /// may lack `_embedded` or its collection key. Any other non-array shape is malformed.
     private static func items(_ value: JSONValue, collection: String) throws -> [JSONValue] {
-        guard let items = value["_embedded"][collection].array else {
+        let embedded = value["_embedded"]
+        switch embedded[collection] {
+        case .array(let items):
+            return items
+        case .null where value.object != nil && (embedded == .null || embedded.object != nil):
+            return []
+        default:
             throw ScoutError.decoding("Help Scout response is missing its \(collection) array.")
         }
-        return items
     }
 
     private func get(_ path: String, query: [String: String] = [:]) async throws -> JSONValue {

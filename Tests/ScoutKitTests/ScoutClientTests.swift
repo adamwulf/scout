@@ -35,6 +35,28 @@ final class ScoutClientTests: XCTestCase {
         XCTAssertFalse(requests[0].url.absoluteString.contains("status="))
     }
 
+    func testPagesWithoutEmbeddedResourcesAreEmpty() async throws {
+        let (client, _) = client([
+            .json(200, #"{"_links":{"self":{"href":"https://api.helpscout.net/v3/conversations/search?query=x"},"first":{"href":"https://api.helpscout.net/v3/conversations/search?query=x"}}}"#),
+            .json(200, #"{"_embedded":{}}"#),
+            .json(200, #"{"page":{"number":1,"size":50,"totalElements":0,"totalPages":0}}"#)
+        ])
+        let search = try await client.search(#"email:"nobody@example.com""#)
+        XCTAssertEqual(search, ResourcePage(items: []))
+        let customers = try await client.customers(email: "nobody@example.com")
+        XCTAssertEqual(customers, ResourcePage(items: []))
+        let inboxes = try await client.inboxes()
+        XCTAssertEqual(inboxes, ResourcePage(items: []))
+    }
+
+    func testMalformedCollectionsStillFail() async throws {
+        for body in [#"{"_embedded":{"conversations":{}}}"#, #"{"_embedded":"none"}"#, #"[]"#] {
+            let (client, _) = client([.json(200, body)])
+            do { _ = try await client.search("subject:refund"); XCTFail("Accepted \(body)") }
+            catch { guard case ScoutError.decoding = error else { return XCTFail("Unexpected error \(error)") } }
+        }
+    }
+
     func testCustomerFilterKeepsRecordsWithoutEmbeddedEmails() async throws {
         let (client, transport) = client([.json(200, #"{"_embedded":{"customers":[{"id":5,"firstName":"Jane"}]}}"#)])
         let page = try await client.customers(email: "jane+test@example.com")
