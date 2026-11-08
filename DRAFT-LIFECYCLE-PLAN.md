@@ -8,8 +8,8 @@ Extend the existing `scout draft` command to create or update and send a selecte
 - [x] Implement the agreed interface with offline selection, request, failure, and CLI parsing coverage.
 - [x] Update README.md and skill/scout/SKILL.md.
 - [x] `swift test --disable-sandbox` and `swift build --disable-sandbox -c release` pass; help and invalid-input smoke checks pass without credentials.
-- [ ] Commit implementation; two independent Sol reviewers approve; fix realistic code issues and meaningful documentation issues and repeat code review after code fixes.
-- [ ] Retire reviewers and report commits, checks, and live API limitations.
+- [x] Commit implementation; two independent Sol reviewers approve; fix realistic code issues and meaningful documentation issues and repeat code review after code fixes.
+- [x] Retire reviewers and report commits, checks, and live API limitations.
 
 ## Agreed command interface
 
@@ -87,7 +87,10 @@ No general scheduling command, separate status-change requests on existing-draft
 - Offline tests pass: 142 ScoutKit tests and 9 CLI tests. The initial run caught two formatting fixtures that needed the newly displayed thread IDs; these fixtures are updated and the full suite passes.
 - Release build passes. Release CLI help and conflicting send/body input were checked using `swift run --disable-sandbox --skip-build -c release scout` because direct execution of the local binary is blocked by the harness allow list.
 - Citation review: references and definitions match in the plan, README, and repository skill; changed API claims trace to the official sources below. No new source claims rely on the unresolved conversation-level publication behavior.
-- First implementation review: Sol agent `agent-f720540d` found one realistic issue: HTTP 408 draft-send warnings correctly described uncertainty but appended an HTTP detail claiming rejection. Added a dedicated HTTP 408 description and complete-message regression coverage for both scheduling and publication. All 143 library tests plus 9 CLI tests and the release build pass after this fix. Reviewer retired after reading its full report. The second first-round review and a new two-agent review of code fixes remain pending. No live API calls or customer writes were performed.
+- Implementation committed as `84e5184`. First-round Sol reviewer `agent-177a1531` approved CLI behavior, architecture, coverage, and documentation/citations. Sol reviewer `agent-f720540d` found one realistic issue: HTTP 408 draft-send warnings correctly described uncertainty but appended an HTTP detail claiming rejection.
+- Fixed the HTTP 408 description and added complete-message regression coverage for both scheduling and publication in `c80bcec`. All 143 library tests plus 9 CLI tests and the release build pass after this fix.
+- Second-round Sol reviewers `agent-bbfb5652` and `agent-31aeb2a0` independently approved `c80bcec`, each rerunning the full test suite and release build. No remaining code or meaningful documentation findings; no findings skipped or left out of scope. All reviewers were retired after their reports were read.
+- No live API calls or customer writes were performed. Draft deletion is deferred by agreement; schedule/publication partial-failure behavior is documented and accepted by Adam.
 
 ## Sources
 
