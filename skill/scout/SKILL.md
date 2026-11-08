@@ -9,7 +9,7 @@ Use `scout ro` for reads. Draft by default. Run `scout send` only when the user 
 
 ## Configuration
 
-Credentials: `SCOUT_APP_ID` and `SCOUT_APP_SECRET`, optional `SCOUT_ACCESS_TOKEN`, optional `SCOUT_INBOX_ID`. Scout loads the nearest `.env` upward from cwd, with nonempty environment values taking precedence. From another project, pass `--env-file /path/to/scout/.env` after the leaf command. Never print or request secret values in chat. `scout ro auth status` shows the acting Help Scout identity. Reads may renew the private local token cache; `ro` never mutates Help Scout content.
+Credentials: `SCOUT_APP_ID` and `SCOUT_APP_SECRET`, optional `SCOUT_ACCESS_TOKEN`, optional `SCOUT_INBOX_ID`. Scout reads `.env` files upward from cwd until it finds credentials, with nearer files and nonempty environment values taking precedence. From another project, pass `--env-file /path/to/scout/.env` after the leaf command. Never print or request secret values in chat. `scout ro auth status` shows the acting Help Scout identity. Reads may renew the private local token cache; `ro` never mutates Help Scout content.
 
 ## Read
 

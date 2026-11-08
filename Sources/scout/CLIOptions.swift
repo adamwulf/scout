@@ -3,7 +3,7 @@ import Foundation
 import ScoutKit
 
 struct ConnectionOptions: ParsableArguments {
-    @Option(help: "Credential file; otherwise discover the nearest .env above the current directory.")
+    @Option(help: "Credential file; otherwise read .env files from the current directory upward until credentials are found.")
     var envFile: String?
 
     func context() throws -> (configuration: ScoutConfiguration, client: ScoutClient) {
