@@ -22,7 +22,7 @@ struct BodyOptions: ParsableArguments {
 struct Draft: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Create or update a reply draft. Never sends.",
-        discussion: "Selects the only draft automatically; use --thread when several exist. Send a draft with send-draft. Delete drafts in Help Scout.")
+        discussion: "Selects the only draft automatically; use --thread when several exist. Refuses scheduled drafts; change or unschedule those in Help Scout. Send a draft with send-draft. Delete drafts in Help Scout.")
     @OptionGroup var connection: ConnectionOptions
     @OptionGroup var body: BodyOptions
     @Argument(help: "Help Scout API conversation ID.") var id: Int
