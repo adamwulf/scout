@@ -8,7 +8,7 @@ struct Scout: AsyncParsableCommand {
         subcommands: [Auth.self, Inboxes.self, ListConversations.self, Show.self, Search.self,
                       Customers.self, Customer.self, Templates.self, Template.self,
                       TemplateCreate.self, TemplateUpdate.self, TemplateDelete.self,
-                      Draft.self, Send.self, Mark.self, ReadOnly.self]
+                      Draft.self, Send.self, SendDraft.self, Mark.self, ReadOnly.self]
     )
 }
 

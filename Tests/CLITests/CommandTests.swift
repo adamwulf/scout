@@ -15,7 +15,8 @@ final class CommandTests: XCTestCase {
             _ = try Scout.parseAsRoot(["ro"] + arguments)
             _ = try Scout.parseAsRoot(arguments)
         }
-        for arguments in [["draft", "12", "--body", "Hi"], ["send", "12", "--body", "Hi"], ["mark", "spam", "12"], ["auth", "login"]] {
+        for arguments in [["draft", "12", "--body", "Hi"], ["send", "12", "--body", "Hi"], ["send-draft", "12"],
+                          ["mark", "spam", "12"], ["auth", "login"]] {
             XCTAssertThrowsError(try Scout.parseAsRoot(["ro"] + arguments))
             _ = try Scout.parseAsRoot(arguments)
         }
@@ -84,26 +85,41 @@ final class CommandTests: XCTestCase {
         XCTAssertEqual(send.status, .closed)
     }
 
-    func testDraftActionsAndExplicitSelection() throws {
-        for options in [["--send"], ["--body", "Hi"], ["--body-file", "-", "--html"], ["--template", "7"]] {
+    func testDraftRequiresBodyAndCannotSend() throws {
+        for options in [["--body", "Hi"], ["--body-file", "-", "--html"], ["--template", "7"]] {
             for selection: [String] in [[], ["--thread", "90"]] {
                 let arguments = ["draft", "12"] + options + selection
                 let draft = try XCTUnwrap(Scout.parseAsRoot(arguments) as? Draft)
-                XCTAssertEqual(draft.send, options == ["--send"])
                 XCTAssertEqual(draft.thread, selection.isEmpty ? nil : 90)
                 XCTAssertThrowsError(try Scout.parseAsRoot(["ro"] + arguments))
             }
         }
-        for options in [[], ["--send", "--body", "Hi"], ["--send", "--body-file", "-"],
-                        ["--send", "--template", "1"], ["--send", "--html"],
+        for options in [[], ["--send"], ["--body", "Hi", "--send"], ["--send", "--thread", "90"],
                         ["--body", "Hi", "--body-file", "missing.txt"], ["--body-file", "-", "--template", "1"],
                         ["--body", "Hi", "--template", "1"], ["--template", "1", "--html"],
-                        ["--send", "--thread", "0"], ["--send", "--thread", "-1"],
-                        ["--send", "--thread", "abc"], ["--thread", "90"],
-                        ["--send", "--status", "closed"], ["--delete"], ["--send", "--delete"]] {
+                        ["--body", "Hi", "--thread", "0"], ["--body", "Hi", "--thread", "-1"],
+                        ["--body", "Hi", "--thread", "abc"], ["--thread", "90"],
+                        ["--body", "Hi", "--status", "closed"], ["--delete"]] {
             XCTAssertThrowsError(try Scout.parseAsRoot(["draft", "12"] + options), "\(options)")
         }
-        XCTAssertThrowsError(try Scout.parseAsRoot(["draft", "0", "--send"]))
+        XCTAssertThrowsError(try Scout.parseAsRoot(["draft", "0", "--body", "Hi"]))
+    }
+
+    func testSendDraftSelectsExistingDraftWithoutBodyInput() throws {
+        for selection: [String] in [[], ["--thread", "90"]] {
+            let arguments = ["send-draft", "12"] + selection
+            let sendDraft = try XCTUnwrap(Scout.parseAsRoot(arguments) as? SendDraft)
+            XCTAssertEqual(sendDraft.id, 12)
+            XCTAssertEqual(sendDraft.thread, selection.isEmpty ? nil : 90)
+            XCTAssertThrowsError(try Scout.parseAsRoot(["ro"] + arguments))
+        }
+        for options in [["--body", "Hi"], ["--body-file", "-"], ["--template", "1"], ["--html"],
+                        ["--thread", "0"], ["--thread", "-1"], ["--thread", "abc"],
+                        ["--status", "closed"], ["--send"], ["--delete"]] {
+            XCTAssertThrowsError(try Scout.parseAsRoot(["send-draft", "12"] + options), "\(options)")
+        }
+        XCTAssertThrowsError(try Scout.parseAsRoot(["send-draft"]))
+        XCTAssertThrowsError(try Scout.parseAsRoot(["send-draft", "0"]))
         XCTAssertThrowsError(try Scout.parseAsRoot(["send", "12", "--send"]))
         XCTAssertThrowsError(try Scout.parseAsRoot(["send", "12", "--body-file", "-", "--thread", "90"]))
     }
