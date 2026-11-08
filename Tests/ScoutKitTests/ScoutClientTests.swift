@@ -122,8 +122,45 @@ final class ScoutClientTests: XCTestCase {
         do { _ = try await client.createDraft(conversation: 12, content: .text("{%customer.firstName%}", html: false)); XCTFail() } catch {}
         do { _ = try await client.sendReply(conversation: 12, content: .text(" \n", html: true)); XCTFail() } catch {}
         do { _ = try await client.customer(-1); XCTFail() } catch {}
+        do { try await client.mark(conversation: 0, status: .spam); XCTFail() } catch {}
+        do { try await client.mark(conversation: -1, status: .closed); XCTFail() } catch {}
         let requests = await transport.requests
         XCTAssertTrue(requests.isEmpty)
+    }
+
+    func testMarkPatchesOnlyStatusAndAcceptsEmptySuccess() async throws {
+        for status in ReplyStatus.allCases {
+            let (client, transport) = client([.json(200, conversation), .json(204, "")])
+            let receipt = try await client.mark(conversation: 12, status: status)
+            XCTAssertEqual(receipt.conversationID, 12)
+            XCTAssertEqual(receipt.status, status)
+            let requests = await transport.requests
+            XCTAssertEqual(requests.map(\.method), ["GET", "PATCH"])
+            XCTAssertEqual(requests.map(\.url.path), ["/v3/conversations/12", "/v2/conversations/12"])
+            let patch = try XCTUnwrap(requests.last)
+            let body = try JSONDecoder().decode(JSONValue.self, from: XCTUnwrap(patch.body))
+            XCTAssertEqual(body, .object([
+                "op": .string("replace"), "path": .string("/status"), "value": .string(status.rawValue)
+            ]))
+        }
+    }
+
+    func testMergedConversationCannotBeMarked() async throws {
+        let (client, transport) = client([.json(301, "", headers: ["Location": "https://api.helpscout.net/v3/conversations/99"])])
+        do { try await client.mark(conversation: 12, status: .spam); XCTFail() }
+        catch { XCTAssertEqual(error as? ScoutError, .merged(99)) }
+        let requests = await transport.requests
+        XCTAssertEqual(requests.map(\.method), ["GET"])
+    }
+
+    func testMarkFailuresAreNotReplayed() async throws {
+        for failure in [ScriptedHTTPTransport.Reply.failure(URLError(.timedOut)), .json(500), .json(403), .json(404)] {
+            let (client, transport) = client([.json(200, conversation), failure])
+            do { try await client.mark(conversation: 12, status: .closed); XCTFail() }
+            catch { XCTAssertTrue(error is ScoutError) }
+            let requests = await transport.requests
+            XCTAssertEqual(requests.map(\.method), ["GET", "PATCH"])
+        }
     }
 
     func testUnresolvedSavedTemplateCannotPost() async throws {

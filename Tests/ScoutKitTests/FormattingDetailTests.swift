@@ -42,6 +42,20 @@ final class FormattingDetailTests: XCTestCase {
 
     // MARK: JSON
 
+    func testStatusReceiptJSONContract() throws {
+        for status in ReplyStatus.allCases {
+            let receipt = StatusReceipt(conversationID: 987654, status: status)
+            let output = try OutputFormatter.receipt(receipt)
+            XCTAssertEqual(output, """
+            {
+              "conversationID" : 987654,
+              "status" : "\(status.rawValue)"
+            }
+
+            """)
+        }
+    }
+
     func testDetailJSONPreservesAllRawValues() throws {
         let output = try OutputFormatter.detail(template, kind: .template, format: .json)
         XCTAssertEqual(try JSONDecoder().decode(JSONValue.self, from: Data(output.utf8)), template)

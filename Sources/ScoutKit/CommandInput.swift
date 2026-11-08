@@ -32,6 +32,13 @@ extension ReplyBody {
 }
 
 extension OutputFormatter {
+    public static func receipt(_ receipt: StatusReceipt) throws -> String {
+        try prettyJSON(.object([
+            "conversationID": .integer(receipt.conversationID),
+            "status": .string(receipt.status.rawValue)
+        ]))
+    }
+
     public static func receipt(_ receipt: ReplyReceipt) throws -> String {
         try prettyJSON(.object([
             "conversationID": .integer(receipt.conversationID),

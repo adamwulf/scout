@@ -99,9 +99,24 @@ Choose exactly one of `--body`, `--body-file` or `--template`. Plain text is tri
 
 `draft` creates a server-side reply draft and submits the conversation's existing status. `send` immediately creates a **new** reply thread; its default status is `active`, which can reopen a closed conversation. It does not publish a previously created draft. Finish existing drafts in Help Scout. Use `--status closed`, `pending`, or `spam` when appropriate. Reply creation and its draft/status fields are documented by Help Scout.[^2]
 
-Writes print a JSON receipt containing `conversationID`, `threadID` and `draft`. If a write times out or returns a server error, inspect the conversation before retrying: it may already have succeeded. Scout never automatically retries an uncertain write. A definite 401 with app credentials can be retried once after token renewal.
+Reply writes print a JSON receipt containing `conversationID`, `threadID` and `draft`. If a write times out or returns a server error, inspect the conversation before retrying: it may already have succeeded. Scout never automatically retries an uncertain write. A definite 401 with app credentials can be retried once after token renewal.
 
 Merged conversations stop with the destination ID; inspect it and rerun explicitly. Rate limits report a retry delay without automatic replay. Locked conversations and permission errors include an explanation.
+
+## Mark conversation status
+
+```sh
+scout mark spam 987654
+scout mark closed 987654
+scout mark active 987654
+scout mark pending 987654
+```
+
+`mark <status> <id>` changes the whole conversation status without creating or sending a reply, using the Help Scout update endpoint.[^6] Use `closed` to archive a conversation and `active` to reopen it. The ID must be a Help Scout API conversation ID. This write command is unavailable under `scout ro`.
+
+Marking spam trains Help Scout to route future conversations from that sender to Spam. Conversations left in Spam are permanently purged 30 days after their last action. Use Help Scout’s **Unmark as Spam** action to reverse an accidental spam classification.[^7]
+
+Success prints a JSON receipt with `conversationID` and `status`. Merged conversations require an explicit rerun with the destination ID. After a timeout or server error, inspect the conversation before retrying; Scout never automatically replays an uncertain write.
 
 ## Saved replies / templates
 
@@ -137,12 +152,14 @@ The library never prints. `ScoutHTTPClient` accepts an injected transport, token
 
 ## Initial release limits and verification
 
-This version supports auth, inboxes, conversation read/search, customer read/filter, saved-reply read/use, draft creation and new reply sending. Attachments, customer editing, new outbound conversations, local template storage, browser OAuth, scheduling, publishing existing drafts and multiple accounts are deferred. The implementation plan and API research are in [PLAN.md](PLAN.md).
+This version supports auth, inboxes, conversation read/search/status changes, customer read/filter, saved-reply read/use, draft creation and new reply sending. Attachments, customer editing, new outbound conversations, local template storage, browser OAuth, scheduling, publishing existing drafts and multiple accounts are deferred. The implementation plan and API research are in [PLAN.md](PLAN.md).
 
-Tests use fake HTTP responses and isolated configuration fixtures. **No live Help Scout API call or real message send has been used to validate this release.** First try `auth status`, `ro inboxes`, `ro list`, and `ro show` with your credentials. Verify drafting and status preservation on an explicitly chosen test conversation before regular use.
+Tests use fake HTTP responses and isolated configuration fixtures. **No live Help Scout API call or real message send has been used to validate this release.** First try `auth status`, `ro inboxes`, `ro list`, and `ro show` with your credentials. Verify drafting and status preservation on an explicitly chosen test conversation before regular use. On that test conversation, try `mark pending`, `mark closed`, and `mark active`, each followed by its API ID; confirm each status with `ro show`, then restore its original status with `mark <original-status> <id>`. Test `mark spam` separately with a disposable sender, then use Help Scout’s **Unmark as Spam** action for cleanup; the update API documentation does not specify whether setting `active` also reverses sender filtering.
 
 [^1]: [Help Scout authentication](https://developer.helpscout.com/mailbox-api/overview/authentication/)
 [^2]: [Create reply thread](https://developer.helpscout.com/mailbox-api/endpoints/conversations/threads/reply/)
 [^3]: [Search conversations v3](https://developer.helpscout.com/mailbox-api/endpoints/conversations/search-v3/)
 [^4]: [List customers v3](https://developer.helpscout.com/mailbox-api/endpoints/customers/list-v3/)
 [^5]: [Help Scout variables](https://docs.helpscout.com/article/468-variables)
+[^6]: [Update conversation](https://developer.helpscout.com/mailbox-api/endpoints/conversations/update/)
+[^7]: [Help Scout spam filtering and retention](https://docs.helpscout.com/article/307-manage-spam-and-unwanted-email)

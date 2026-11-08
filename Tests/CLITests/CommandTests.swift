@@ -15,9 +15,24 @@ final class CommandTests: XCTestCase {
             _ = try Scout.parseAsRoot(["ro"] + arguments)
             _ = try Scout.parseAsRoot(arguments)
         }
-        for arguments in [["draft", "12", "--body", "Hi"], ["send", "12", "--body", "Hi"], ["auth", "login"]] {
+        for arguments in [["draft", "12", "--body", "Hi"], ["send", "12", "--body", "Hi"], ["mark", "spam", "12"], ["auth", "login"]] {
             XCTAssertThrowsError(try Scout.parseAsRoot(["ro"] + arguments))
             _ = try Scout.parseAsRoot(arguments)
+        }
+    }
+
+    func testMarkAcceptsWritableStatusesAndRequiresPositiveConversationID() throws {
+        for status in ReplyStatus.allCases {
+            let mark = try XCTUnwrap(Scout.parseAsRoot(["mark", status.rawValue, "12", "--env-file", "settings.fixture"]) as? Mark)
+            XCTAssertEqual(mark.status, status)
+            XCTAssertEqual(mark.id, 12)
+            XCTAssertEqual(mark.connection.envFile, "settings.fixture")
+            XCTAssertThrowsError(try Scout.parseAsRoot(["ro", "mark", status.rawValue, "12"]))
+        }
+        for arguments in [["mark"], ["mark", "spam"], ["mark", "spam", "0"], ["mark", "spam", "-1"],
+                          ["mark", "spam", "abc"], ["mark", "all", "12"], ["mark", "archive", "12"],
+                          ["mark", "12", "spam"], ["mark", "spam", "12", "--body", "Hi"]] {
+            XCTAssertThrowsError(try Scout.parseAsRoot(arguments), "\(arguments)")
         }
     }
 

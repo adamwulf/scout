@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Read Help Scout inboxes, conversations, customers and saved replies with scout; create drafts and send replies when explicitly instructed.
+description: Read Help Scout inboxes, conversations, customers and saved replies with scout; mark conversation status, create drafts and send replies when explicitly instructed.
 ---
 
 # Scout
@@ -51,4 +51,21 @@ Exactly one body source is required. Plain text is escaped; `--html` passes inte
 
 Drafts preserve the conversation status. `send` creates a new reply immediately and defaults to active (which can reopen a conversation). It cannot publish an existing draft; complete that in Help Scout. After a timeout/server error, inspect the conversation before retrying to avoid a duplicate reply. A missing thread ID in a successful receipt is not a failed send. Merged IDs require explicit rerun with the new ID.
 
+## Mark conversation status
+
+Use `mark` only for user-authorized status changes. First read the conversation with `scout ro show <id>` and verify the customer and context. Change the status without sending a reply:
+
+```sh
+scout mark spam 987654
+scout mark closed 987654
+scout mark active 987654
+scout mark pending 987654
+```
+
+The syntax is `scout mark <status> <conversation-id>`, using an API ID. `closed` archives; `active` reopens. The change applies to the whole conversation, not an individual message. Success returns JSON with `conversationID` and `status`. This write is unavailable under `ro`. Merged IDs require an explicit rerun; inspect the conversation after a timeout or server error before retrying.
+
+Marking spam trains Help Scout to route future conversations from that sender to Spam; conversations left there are permanently purged 30 days after their last action. Use Help Scout’s **Unmark as Spam** action for accidental spam classifications.[^1] Test spam only with a disposable sender; do not assume API `mark active` reverses sender filtering.
+
 See README.md for supported formats, setup and current limits. Live behavior must be verified with credentials and an explicitly selected test conversation; automated tests are offline.
+
+[^1]: [Help Scout spam filtering and retention](https://docs.helpscout.com/article/307-manage-spam-and-unwanted-email)
