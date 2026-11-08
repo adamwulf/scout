@@ -58,6 +58,11 @@ enum HTTPFailure {
             summary = "Help Scout could not find \(endpoint)."
                 + (conversationID(inPath: path) == nil
                     ? "" : " The conversation may have been merged or deleted; check its ID in Help Scout.")
+        case 408:
+            summary = "Help Scout reported a request timeout for \(endpoint)."
+                + (method == "GET"
+                    ? " Try again shortly."
+                    : " The write outcome is uncertain; inspect \(writeTarget(path)) before retrying.")
         case 412:
             summary = "Help Scout refused \(endpoint) because the conversation is locked: it reached its thread "
                 + "limit or a company locking policy applies."

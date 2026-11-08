@@ -143,6 +143,7 @@ extension OutputFormatter {
             }
             let actionText = thread["action"]["text"].string
             document.fields([
+                ("Thread ID", scalarText(thread["id"])),
                 ("Author", authorLabel ?? "Unknown"),
                 ("Type", thread["type"].string),
                 ("State", thread["state"].string),
