@@ -46,29 +46,35 @@ public enum OutputFormatter {
     /// Renders a conversation with its threads. JSON keeps the full API objects under
     /// `conversation` and `threads`; markdown lists threads oldest first with labeled metadata, and links
     /// each downloaded attachment in `attachmentPaths` (by attachment ID) after its thread body, embedding images.
+    /// Help Scout inline images are embedded where the body shows them, from `inlineImagePaths` (by `src` URL)
+    /// when downloaded and otherwise from Help Scout's CDN; other images are never linked or loaded.
     public static func conversation(_ value: JSONValue, threads: [JSONValue], format: DetailFormat,
-                                    attachmentPaths: [Int: String] = [:]) throws -> String {
+                                    attachmentPaths: [Int: String] = [:], inlineImagePaths: [String: String] = [:]) throws -> String {
         switch format {
         case .json:
             return try prettyJSON(.object(["conversation": value, "threads": .array(threads)]))
         case .raw:
             throw rawUnavailable
         case .markdown:
-            return Markdown.conversation(value, threads: threads, attachmentPaths: attachmentPaths)
+            return Markdown.conversation(value, threads: threads, attachmentPaths: attachmentPaths, inlineImagePaths: inlineImagePaths)
         }
     }
 
-    /// One saved file path per line, for stdout.
+    /// One saved file path per line, attachments then inline images, for stdout.
     public static func attachmentPaths(_ download: AttachmentDownload) -> String {
         download.saved.map { $0.path + "\n" }.joined()
     }
 
-    /// One line per skipped or failed attachment, for stderr.
+    /// One line per skipped or failed attachment or inline image, for stderr.
     public static func attachmentProblems(_ download: AttachmentDownload) -> [String] {
         func label(_ problem: AttachmentDownload.Problem) -> String {
-            let id = problem.attachmentID.map { "attachment \($0)" } ?? "attachment"
+            let kind: String
+            switch problem.source {
+            case .attachment(let id): kind = id.map { "attachment \($0)" } ?? "attachment"
+            case .inlineImage: kind = "inline image"
+            }
             let name = TerminalText.singleLine(problem.filename)
-            return name.isEmpty ? id : "\(id) (\(name))"
+            return name.isEmpty ? kind : "\(kind) (\(name))"
         }
         return download.skipped.map { "Skipped \(label($0)): \(TerminalText.singleLine($0.reason))" }
             + download.failed.map { "Failed to save \(label($0)): \(TerminalText.singleLine($0.reason))" }

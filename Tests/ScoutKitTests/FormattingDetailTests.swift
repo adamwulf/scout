@@ -82,6 +82,19 @@ final class FormattingDetailTests: XCTestCase {
         """)
     }
 
+    func testTemplateMarkdownShowsImagesByTheBodyImageRules() throws {
+        let text = #"<p>Our logo: <img src="\#(InlineImageTests.appleMailImage)"> <img src="https://cdn.example.com/logo.png"></p>"#
+        let value: JSONValue = .object(["id": .integer(3), "name": .string("Logo"), "text": .string(text)])
+        XCTAssertEqual(try OutputFormatter.detail(value, kind: .template, format: .markdown), """
+        # Logo
+
+        - ID: 3
+
+        Our logo: ![CleanShot-2026-10-15-at-14-09-13-2x.png](\(InlineImageTests.appleMailImage)) [external image not fetched: cdn.example.com]
+
+        """)
+    }
+
     func testChatOnlyTemplateMarkdownPreservesPlainTextAndRawExplainsFormat() throws {
         let chat: JSONValue = .object(["id": .integer(10), "name": .string("Chat"), "text": .null,
                                        "chatText": .string("Use <example> & keep it\nplain text")])
