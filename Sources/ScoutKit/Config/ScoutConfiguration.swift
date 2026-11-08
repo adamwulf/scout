@@ -1,6 +1,6 @@
 import Foundation
 
-/// Single-account settings from one env file plus nonempty process environment values.
+/// Single-account settings from env files plus nonempty process environment values.
 /// Loading never requires credentials, so commands can validate their arguments first.
 public struct ScoutConfiguration: Sendable, Equatable {
     public static let appIDKey = "SCOUT_APP_ID"
@@ -8,6 +8,7 @@ public struct ScoutConfiguration: Sendable, Equatable {
     public static let accessTokenKey = "SCOUT_ACCESS_TOKEN"
     public static let inboxIDKey = "SCOUT_INBOX_ID"
     static let keys: Set<String> = [appIDKey, appSecretKey, accessTokenKey, inboxIDKey]
+    static let credentialKeys: Set<String> = [appIDKey, appSecretKey, accessTokenKey]
 
     public var appID: String?
     public var appSecret: String?
@@ -30,8 +31,11 @@ public struct ScoutConfiguration: Sendable, Equatable {
         self.sourceDescription = sourceDescription
     }
 
-    /// Reads `envFile` when given (relative paths resolve against `startingDirectory`), otherwise the nearest
-    /// `.env` found searching upward from `startingDirectory`. Discovery stops at the first file found.
+    /// Reads only `envFile` when given (relative paths resolve against `startingDirectory`). Otherwise reads each
+    /// `.env` from `startingDirectory` upward and stops at the first file that sets any credential, so file
+    /// credentials (including the app ID and secret pair) always come from one file. If the process environment
+    /// already supplies complete credentials, only the nearest `.env` is read. Each key takes its first nonempty
+    /// value from the process environment, then nearer files, then farther files; empty values count as unset.
     public static func load(
         envFile: String? = nil,
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -49,27 +53,40 @@ public struct ScoutConfiguration: Sendable, Equatable {
         discoveryFileName: String = ".env"
     ) throws -> ScoutConfiguration {
         let start = startingDirectory.standardizedFileURL
-        let file: URL?
-        if let envFile {
-            file = try explicitFile(envFile, relativeTo: start)
-        } else {
-            file = discoverFile(from: start, boundary: searchBoundary?.standardizedFileURL, fileName: discoveryFileName)
-        }
+        let candidates = try envFile.map { [try explicitFile($0, relativeTo: start)] }
+            ?? discoverFiles(from: start, boundary: searchBoundary?.standardizedFileURL, fileName: discoveryFileName)
 
+        // Sources are visited in precedence order and the first nonempty value for each key wins.
         var settings: [String: Setting] = [:]
-        if let file {
-            for (key, entry) in try DotEnvParser.parse(readText(file), keys: keys, source: file.path) {
-                settings[key] = Setting(value: entry.value, location: "\(file.path) line \(entry.line)")
-            }
-        }
         for key in keys {
             if let value = environment[key], !value.isEmpty {
                 settings[key] = Setting(value: value, location: "the process environment")
             }
         }
+        var files: [URL] = []
+        var credentialFile: URL?
+        for file in candidates {
+            files.append(file)
+            let entries = try DotEnvParser.parse(readText(file), keys: keys, source: file.path)
+                .filter { !$0.value.value.isEmpty }
+            for (key, entry) in entries where settings[key] == nil {
+                settings[key] = Setting(value: entry.value, location: "\(file.path) line \(entry.line)")
+            }
+            if !credentialKeys.isDisjoint(with: entries.keys) {
+                credentialFile = file
+                break
+            }
+            if hasCredentials(settings) { break }
+        }
 
-        let source = file.map { "\($0.path) (nonempty process environment values override it)" }
-            ?? "the process environment only (no .env file found in \(start.path) or its parent directories)"
+        let paths = files.map(\.path).joined(separator: ", ")
+        let source = switch (files.count, credentialFile) {
+        case (0, _): "the process environment only (no .env file found in \(start.path) or its parent directories)"
+        case (1, _): "\(paths) (nonempty process environment values override it)"
+        case (_, let file?):
+            "\(paths) (credentials come only from \(file.path); nonempty process environment values override file values)"
+        case (_, nil): "\(paths) (nearer files override farther ones; nonempty process environment values override them all)"
+        }
         return ScoutConfiguration(
             appID: try credential(appIDKey, settings),
             appSecret: try credential(appSecretKey, settings),
@@ -87,6 +104,11 @@ public struct ScoutConfiguration: Sendable, Equatable {
     private struct Setting {
         var value: String
         var location: String
+    }
+
+    /// Settings hold only nonempty values, so presence means the credential is usable.
+    private static func hasCredentials(_ settings: [String: Setting]) -> Bool {
+        settings[accessTokenKey] != nil || (settings[appIDKey] != nil && settings[appSecretKey] != nil)
     }
 
     private static func credential(_ key: String, _ settings: [String: Setting]) throws -> String? {
@@ -119,13 +141,15 @@ public struct ScoutConfiguration: Sendable, Equatable {
         return url
     }
 
-    private static func discoverFile(from start: URL, boundary: URL?, fileName: String) -> URL? {
+    /// Every env file from `start` upward, nearest first.
+    private static func discoverFiles(from start: URL, boundary: URL?, fileName: String) -> [URL] {
+        var files: [URL] = []
         var directory = start
         while true {
             let candidate = directory.appendingPathComponent(fileName)
-            if isRegularFile(candidate) { return candidate }
+            if isRegularFile(candidate) { files.append(candidate) }
             let parent = directory.deletingLastPathComponent().standardizedFileURL
-            if directory.path == boundary?.path || directory.path == "/" || parent.path == directory.path { return nil }
+            if directory.path == boundary?.path || directory.path == "/" || parent.path == directory.path { return files }
             directory = parent
         }
     }

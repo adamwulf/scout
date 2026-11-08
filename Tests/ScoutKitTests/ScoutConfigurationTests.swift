@@ -108,20 +108,79 @@ final class ScoutConfigurationTests: XCTestCase {
         XCTAssertEqual(message?.contains("hidden"), false, message ?? "")
     }
 
-    func testDiscoversNearestEnvFileAndStopsThereEvenWithoutScoutSettings() throws {
-        _ = try write("SCOUT_APP_ID=outer-id\nSCOUT_APP_SECRET=outer-secret\n", to: "scout-fixture.env")
-        let nearest = try write("OTHER_TOOL_SETTING=1\n", to: "project/scout-fixture.env")
+    func testDiscoveryContinuesUpwardPastFilesWithoutCredentials() throws {
+        let outer = try write("SCOUT_APP_ID=outer-id\nSCOUT_APP_SECRET=outer-secret\nSCOUT_INBOX_ID=9\n", to: "scout-fixture.env")
+        let nearest = try write("OTHER_TOOL_SETTING=1\nSCOUT_APP_ID=\nSCOUT_INBOX_ID=5\n", to: "project/scout-fixture.env")
         let start = try directory("project/Sources/deep")
 
         let configuration = try load(from: start)
 
-        XCTAssertNil(configuration.appID)
-        XCTAssertNil(configuration.appSecret)
-        XCTAssertTrue(configuration.sourceDescription.contains(nearest.path), configuration.sourceDescription)
+        XCTAssertEqual(try configuration.authentication(), .clientCredentials(appID: "outer-id", appSecret: "outer-secret"))
+        XCTAssertEqual(configuration.inboxID, 5, "the nearer file's value wins")
+        XCTAssertEqual(
+            configuration.sourceDescription,
+            "\(nearest.path), \(outer.path) (credentials come only from \(outer.path); "
+                + "nonempty process environment values override file values)"
+        )
+    }
+
+    func testDiscoveryStopsAtFirstFileWithAnyCredential() throws {
+        let outer = try write("SCOUT_ACCESS_TOKEN=outer-token\nSCOUT_INBOX_ID=9\n", to: "scout-fixture.env")
+        _ = try write("SCOUT_APP_ID=project-id\nSCOUT_APP_SECRET=project-secret\n", to: "project/scout-fixture.env")
+        let start = try directory("project/sub")
+
+        let configuration = try load(from: start)
+
+        XCTAssertEqual(try configuration.authentication(), .clientCredentials(appID: "project-id", appSecret: "project-secret"))
+        XCTAssertNil(configuration.accessToken)
+        XCTAssertNil(configuration.inboxID)
+        XCTAssertFalse(configuration.sourceDescription.contains(outer.path), configuration.sourceDescription)
+
+        // Credentials from the environment also end discovery after the first file.
+        let sub = try write("OTHER_TOOL_SETTING=1\n", to: "project/sub/scout-fixture.env")
+        let fromEnvironment = try load(environment: ["SCOUT_ACCESS_TOKEN": "env-token"], from: start)
+        XCTAssertEqual(try fromEnvironment.authentication(), .accessToken("env-token"))
+        XCTAssertNil(fromEnvironment.appID)
+        let fromEnvironmentApp = try load(environment: ["SCOUT_APP_ID": "env-id", "SCOUT_APP_SECRET": "env-secret"], from: start)
+        XCTAssertEqual(try fromEnvironmentApp.authentication(), .clientCredentials(appID: "env-id", appSecret: "env-secret"))
+        XCTAssertNil(fromEnvironmentApp.inboxID, "the farther token and inbox are not read")
+        XCTAssertEqual(fromEnvironmentApp.sourceDescription, "\(sub.path) (nonempty process environment values override it)")
+
+        // A file with half of the app pair still ends discovery: the pair never mixes files, and the
+        // farther secret and access token are not read.
+        _ = try write("SCOUT_APP_SECRET=split-secret\n", to: "split/scout-fixture.env")
+        let inner = try write("SCOUT_APP_ID=inner-id\n", to: "split/inner/scout-fixture.env")
+        let partial = try load(from: try directory("split/inner"))
+        XCTAssertEqual(partial.appID, "inner-id")
+        XCTAssertNil(partial.appSecret)
+        XCTAssertNil(partial.accessToken)
+        XCTAssertThrowsError(try partial.authentication()) { error in
+            guard case ScoutError.configuration(let message) = error else { return XCTFail("Unexpected \(error)") }
+            XCTAssertTrue(message.contains("set SCOUT_APP_SECRET."), message)
+            XCTAssertTrue(message.contains("from \(inner.path) (nonempty"), message)
+        }
+    }
+
+    func testMissingCredentialsErrorNamesEveryFileRead() throws {
+        let outer = try write("OTHER_TOOL_SETTING=1\n", to: "scout-fixture.env")
+        let nearest = try write("SCOUT_INBOX_ID=5\n", to: "project/scout-fixture.env")
+
+        let configuration = try load(from: try directory("project"))
+
         XCTAssertThrowsError(try configuration.authentication()) { error in
             guard case ScoutError.configuration(let message) = error else { return XCTFail("Unexpected \(error)") }
             XCTAssertTrue(message.contains("SCOUT_APP_ID and SCOUT_APP_SECRET"), message)
-            XCTAssertTrue(message.contains(nearest.path), message)
+            XCTAssertTrue(message.contains("\(nearest.path), \(outer.path) (nearer files override"), message)
+        }
+
+        // When a farther file holds half of the app pair, the error names that file as the credential source.
+        let half = try write("SCOUT_APP_ID=half-id\n", to: "half/scout-fixture.env")
+        _ = try write("SCOUT_INBOX_ID=5\n", to: "half/project/scout-fixture.env")
+        let partial = try load(from: try directory("half/project"))
+        XCTAssertThrowsError(try partial.authentication()) { error in
+            guard case ScoutError.configuration(let message) = error else { return XCTFail("Unexpected \(error)") }
+            XCTAssertTrue(message.contains("set SCOUT_APP_SECRET."), message)
+            XCTAssertTrue(message.contains("credentials come only from \(half.path);"), message)
         }
     }
 
@@ -152,7 +211,7 @@ final class ScoutConfigurationTests: XCTestCase {
     }
 
     func testExplicitEnvFileResolvesFromStartingDirectoryAndSkipsDiscovery() throws {
-        _ = try write("SCOUT_APP_ID=discovered\n", to: "elsewhere/scout-fixture.env")
+        _ = try write("SCOUT_APP_ID=discovered\nSCOUT_APP_SECRET=discovered-secret\n", to: "elsewhere/scout-fixture.env")
         let file = try write("SCOUT_APP_ID=explicit-id\nSCOUT_APP_SECRET=explicit-secret\n", to: "config/scout-fixture.env")
         let start = try directory("elsewhere")
 
@@ -162,6 +221,13 @@ final class ScoutConfigurationTests: XCTestCase {
 
         let absolute = try load(envFile: file.path, from: start)
         XCTAssertEqual(absolute.appSecret, "explicit-secret")
+
+        // An explicit file without complete credentials is still the only file read.
+        let partial = try write("SCOUT_APP_ID=explicit-id\n", to: "config/partial-fixture.env")
+        let incomplete = try load(envFile: partial.path, from: start)
+        XCTAssertEqual(incomplete.appID, "explicit-id")
+        XCTAssertNil(incomplete.appSecret)
+        XCTAssertEqual(incomplete.sourceDescription, "\(partial.path) (nonempty process environment values override it)")
 
         let message = configurationError { try load(envFile: "missing-fixture.env", from: start) }
         XCTAssertEqual(message, "Env file not found: \(start.appendingPathComponent("missing-fixture.env").path)")
