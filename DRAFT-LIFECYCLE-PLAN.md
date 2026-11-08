@@ -87,7 +87,7 @@ No general scheduling command, separate status-change requests on existing-draft
 - Offline tests pass: 142 ScoutKit tests and 9 CLI tests. The initial run caught two formatting fixtures that needed the newly displayed thread IDs; these fixtures are updated and the full suite passes.
 - Release build passes. Release CLI help and conflicting send/body input were checked using `swift run --disable-sandbox --skip-build -c release scout` because direct execution of the local binary is blocked by the harness allow list.
 - Citation review: references and definitions match in the plan, README, and repository skill; changed API claims trace to the official sources below. No new source claims rely on the unresolved conversation-level publication behavior.
-- Two independent Sol implementation reviews remain pending. No live API calls or customer writes were performed.
+- First implementation review: Sol agent `agent-f720540d` found one realistic issue: HTTP 408 draft-send warnings correctly described uncertainty but appended an HTTP detail claiming rejection. Added a dedicated HTTP 408 description and complete-message regression coverage for both scheduling and publication. All 143 library tests plus 9 CLI tests and the release build pass after this fix. Reviewer retired after reading its full report. The second first-round review and a new two-agent review of code fixes remain pending. No live API calls or customer writes were performed.
 
 ## Sources
 

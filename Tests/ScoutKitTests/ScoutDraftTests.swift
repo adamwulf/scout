@@ -244,6 +244,29 @@ final class ScoutDraftTests: XCTestCase {
         }
     }
 
+    func testHTTP408CompleteSendErrorsRemainConsistentlyUncertain() async throws {
+        for publishing in [false, true] {
+            var replies: [ScriptedHTTPTransport.Reply] = [.json(200, conversation), try page([draft()])]
+            if publishing { replies.append(.json(204, "")) }
+            replies.append(.json(408))
+            let (client, transport) = client(replies)
+            do { _ = try await client.sendDraft(conversation: 12); XCTFail() }
+            catch {
+                let phase = publishing
+                    ? "Publication could not be confirmed. The reply may already have been sent, or the draft may remain scheduled and send later."
+                    : "Scheduling could not be confirmed. The draft may be scheduled and send later. This command did not attempt publication."
+                let method = publishing ? "PATCH" : "PUT"
+                XCTAssertEqual(error.localizedDescription,
+                    "Could not complete sending draft 90 in conversation 12. \(phase) "
+                    + "Inspect the thread in Help Scout and cancel any remaining schedule before retrying. "
+                    + "HTTP 408: Help Scout reported a request timeout for \(method) /v2/conversations/12/threads/90/schedule. "
+                    + "The write outcome is uncertain; inspect the conversation before retrying.")
+            }
+            let requests = await transport.requests
+            XCTAssertEqual(requests.count, replies.count)
+        }
+    }
+
     func testInvalidInputsFailBeforeNetworkAndMissingCreatedIDIsSuccess() async throws {
         let (invalid, transport) = client([])
         do { _ = try await invalid.sendDraft(conversation: 0); XCTFail() } catch {}
