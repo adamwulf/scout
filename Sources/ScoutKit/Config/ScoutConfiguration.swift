@@ -33,9 +33,9 @@ public struct ScoutConfiguration: Sendable, Equatable {
 
     /// Reads only `envFile` when given (relative paths resolve against `startingDirectory`). Otherwise reads each
     /// `.env` from `startingDirectory` upward and stops at the first file that sets any credential, so file
-    /// credentials (including the app ID and secret pair) always come from one file. Discovery also stops once the
-    /// process environment supplies complete credentials. Each key takes its first nonempty value from the process
-    /// environment, then nearer files, then farther files; empty values count as unset.
+    /// credentials (including the app ID and secret pair) always come from one file. If the process environment
+    /// already supplies complete credentials, only the nearest `.env` is read. Each key takes its first nonempty
+    /// value from the process environment, then nearer files, then farther files; empty values count as unset.
     public static func load(
         envFile: String? = nil,
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -64,6 +64,7 @@ public struct ScoutConfiguration: Sendable, Equatable {
             }
         }
         var files: [URL] = []
+        var credentialFile: URL?
         for file in candidates {
             files.append(file)
             let entries = try DotEnvParser.parse(readText(file), keys: keys, source: file.path)
@@ -71,14 +72,20 @@ public struct ScoutConfiguration: Sendable, Equatable {
             for (key, entry) in entries where settings[key] == nil {
                 settings[key] = Setting(value: entry.value, location: "\(file.path) line \(entry.line)")
             }
-            if hasCredentials(settings) || !credentialKeys.isDisjoint(with: entries.keys) { break }
+            if !credentialKeys.isDisjoint(with: entries.keys) {
+                credentialFile = file
+                break
+            }
+            if hasCredentials(settings) { break }
         }
 
         let paths = files.map(\.path).joined(separator: ", ")
-        let source = switch files.count {
-        case 0: "the process environment only (no .env file found in \(start.path) or its parent directories)"
-        case 1: "\(paths) (nonempty process environment values override it)"
-        default: "\(paths) (nearer files override farther ones; nonempty process environment values override them all)"
+        let source = switch (files.count, credentialFile) {
+        case (0, _): "the process environment only (no .env file found in \(start.path) or its parent directories)"
+        case (1, _): "\(paths) (nonempty process environment values override it)"
+        case (_, let file?):
+            "\(paths) (credentials come only from \(file.path); nonempty process environment values override file values)"
+        case (_, nil): "\(paths) (nearer files override farther ones; nonempty process environment values override them all)"
         }
         return ScoutConfiguration(
             appID: try credential(appIDKey, settings),

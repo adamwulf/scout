@@ -119,8 +119,8 @@ final class ScoutConfigurationTests: XCTestCase {
         XCTAssertEqual(configuration.inboxID, 5, "the nearer file's value wins")
         XCTAssertEqual(
             configuration.sourceDescription,
-            "\(nearest.path), \(outer.path) (nearer files override farther ones; "
-                + "nonempty process environment values override them all)"
+            "\(nearest.path), \(outer.path) (credentials come only from \(outer.path); "
+                + "nonempty process environment values override file values)"
         )
     }
 
@@ -141,6 +141,9 @@ final class ScoutConfigurationTests: XCTestCase {
         let fromEnvironment = try load(environment: ["SCOUT_ACCESS_TOKEN": "env-token"], from: start)
         XCTAssertEqual(try fromEnvironment.authentication(), .accessToken("env-token"))
         XCTAssertNil(fromEnvironment.appID)
+        let fromEnvironmentApp = try load(environment: ["SCOUT_APP_ID": "env-id", "SCOUT_APP_SECRET": "env-secret"], from: start)
+        XCTAssertEqual(try fromEnvironmentApp.authentication(), .clientCredentials(appID: "env-id", appSecret: "env-secret"))
+        XCTAssertNil(fromEnvironmentApp.inboxID, "the farther token and inbox are not read")
 
         // A file with half of the app pair still ends discovery: the pair never mixes files, and the
         // farther secret and access token are not read.
@@ -166,7 +169,17 @@ final class ScoutConfigurationTests: XCTestCase {
         XCTAssertThrowsError(try configuration.authentication()) { error in
             guard case ScoutError.configuration(let message) = error else { return XCTFail("Unexpected \(error)") }
             XCTAssertTrue(message.contains("SCOUT_APP_ID and SCOUT_APP_SECRET"), message)
-            XCTAssertTrue(message.contains("\(nearest.path), \(outer.path)"), message)
+            XCTAssertTrue(message.contains("\(nearest.path), \(outer.path) (nearer files override"), message)
+        }
+
+        // When a farther file holds half of the app pair, the error names that file as the credential source.
+        let half = try write("SCOUT_APP_ID=half-id\n", to: "half/scout-fixture.env")
+        _ = try write("SCOUT_INBOX_ID=5\n", to: "half/project/scout-fixture.env")
+        let partial = try load(from: try directory("half/project"))
+        XCTAssertThrowsError(try partial.authentication()) { error in
+            guard case ScoutError.configuration(let message) = error else { return XCTFail("Unexpected \(error)") }
+            XCTAssertTrue(message.contains("set SCOUT_APP_SECRET."), message)
+            XCTAssertTrue(message.contains("credentials come only from \(half.path);"), message)
         }
     }
 
