@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Read Help Scout inboxes, conversations, customers and saved replies with scout; create drafts and send replies when explicitly instructed.
+description: Read Help Scout inboxes, conversations, customers and saved replies with scout; mark conversation status, create drafts and send replies when explicitly instructed.
 ---
 
 # Scout
@@ -50,5 +50,18 @@ scout send 987654 --body-file reply.txt --status closed
 Exactly one body source is required. Plain text is escaped; `--html` passes intended HTML. Saved templates are already HTML and use the conversation's inbox. Unresolved `{%...%}` variables are rejected for every source; export/edit the template rather than assuming substitution.
 
 Drafts preserve the conversation status. `send` creates a new reply immediately and defaults to active (which can reopen a conversation). It cannot publish an existing draft; complete that in Help Scout. After a timeout/server error, inspect the conversation before retrying to avoid a duplicate reply. A missing thread ID in a successful receipt is not a failed send. Merged IDs require explicit rerun with the new ID.
+
+## Mark conversation status
+
+When asked to change a conversation status, use `mark` without sending a reply:
+
+```sh
+scout mark spam 987654
+scout mark closed 987654
+scout mark active 987654
+scout mark pending 987654
+```
+
+The syntax is `scout mark <status> <conversation-id>`, using an API ID. `closed` archives; `active` reopens. The change applies to the whole conversation, not an individual message. Success returns JSON with `conversationID` and `status`. This write is unavailable under `ro`. Merged IDs require an explicit rerun; inspect the conversation after a timeout or server error before retrying.
 
 See README.md for supported formats, setup and current limits. Live behavior must be verified with credentials and an explicitly selected test conversation; automated tests are offline.
