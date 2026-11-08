@@ -54,7 +54,8 @@ final class CommandTests: XCTestCase {
 
             for arguments in [["attachments", "12"], ["attachments", "12", "-o"], ["attachments", "12", "-o", " "],
                               ["attachments", "0", "-o", "files"], ["attachments", "12", "-o", "files", "--attachment", "0"],
-                              ["attachments", "-o", "files"], ["show", "12", "-o", ""]] {
+                              ["attachments", "-o", "files"], ["show", "12", "-o", ""],
+                              ["show", "12", "-o", "files", "--format", "json"]] {
                 XCTAssertThrowsError(try Scout.parseAsRoot(prefix + arguments), "\(arguments)")
             }
         }

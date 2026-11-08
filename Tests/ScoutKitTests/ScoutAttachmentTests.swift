@@ -69,7 +69,8 @@ final class ScoutAttachmentTests: XCTestCase {
     }
 
     func testFileNamesStayInsideTheOutputDirectory() async throws {
-        let hostile = ["../escape.png", "....//x.png", "/etc/passwd", #"a\b:c<d>.png"#, "\u{1B}[2J\u{202E}evil.png", "", "  spaced   name.png  "]
+        let hostile = ["../escape.png", "....//x.png", "/etc/passwd", #"a\b:c<d>.png"#, "\u{1B}[2J\u{202E}evil.png", "", "  spaced   name.png  ",
+                       "Invoice #1234?.png", "100% done.png"]
         let attachments = hostile.enumerated().map { attachment($0.offset + 1, $0.element) }
         let (client, _) = client(hostile.map { _ in data("x") })
         let directory = root.appendingPathComponent("files")
@@ -79,6 +80,7 @@ final class ScoutAttachmentTests: XCTestCase {
         XCTAssertEqual(download.failed, [])
         XCTAssertEqual(try names(in: directory), [
             "1-.._escape.png", "2-....__x.png", "3-_etc_passwd", "4-a_b_c_d_.png", "5-[2Jevil.png", "6-attachment", "7-spaced name.png",
+            "8-Invoice _1234_.png", "9-100_ done.png",
         ].sorted())
         XCTAssertEqual(try names(in: root), ["files"], "Nothing is written outside the output directory")
         XCTAssertTrue(download.saved.allSatisfy { URL(fileURLWithPath: $0.path).deletingLastPathComponent().path == directory.path })

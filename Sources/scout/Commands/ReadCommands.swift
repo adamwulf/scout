@@ -37,11 +37,16 @@ struct Show: ReadOnlyCommand {
     @OptionGroup var output: DetailOptions
     @Argument(help: "Help Scout API conversation ID (not its #number).") var id: Int
     @Option(name: [.customShort("o"), .customLong("output-dir")],
-            help: "Also download attachments into this directory; md output links them and embeds images.")
+            help: "Also download attachments into this directory; md output links them and embeds images. md only.")
     var outputDir: String?
     mutating func validate() throws {
         try ScoutClient.positive(id, name: "Conversation ID")
-        if let outputDir { try ScoutClient.validateOutputDirectory(outputDir) }
+        if let outputDir {
+            try ScoutClient.validateOutputDirectory(outputDir)
+            guard output.format == .markdown else {
+                throw ValidationError("--output-dir requires --format md. Use `scout attachments ID -o DIR` to download files alongside JSON output.")
+            }
+        }
     }
     func run() async throws {
         let client = try connection.context().client

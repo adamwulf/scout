@@ -111,11 +111,12 @@ extension ScoutClient {
     }
 
     /// `<id>-<name>`, where the name is one safe path component: control and bidirectional characters are
-    /// removed, whitespace is collapsed, and characters that separate paths or end markdown link destinations
-    /// become `_`. The ID prefix keeps names unique and rules out `.`, `..` and hidden files. Long names are
-    /// shortened to the 255-byte file-name limit, keeping a short extension.
+    /// removed, whitespace is collapsed, and characters that separate paths, end markdown link destinations,
+    /// or act as URL syntax in links (`#`, `?`, `%`) become `_`. The ID prefix keeps names unique and rules
+    /// out `.`, `..` and hidden files. Long names are shortened to the 255-byte file-name limit, keeping a
+    /// short extension.
     static func attachmentFileName(id: Int, filename: String) -> String {
-        let replaced: Set<Unicode.Scalar> = ["/", "\\", ":", "<", ">"]
+        let replaced: Set<Unicode.Scalar> = ["/", "\\", ":", "<", ">", "#", "?", "%"]
         let cleaned = OutputFormatter.TerminalText.singleLine(filename).unicodeScalars.map { replaced.contains($0) ? "_" : $0 }
         var name = String(String.UnicodeScalarView(cleaned))
         if name.isEmpty { name = "attachment" }
