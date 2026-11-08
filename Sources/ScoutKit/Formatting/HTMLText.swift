@@ -7,7 +7,7 @@ extension OutputFormatter {
     /// as markdown links. Text without tags keeps its line breaks but still has entities decoded,
     /// because escaped one-line replies such as `It&#39;s` contain no tags.
     ///
-    /// Images are rendered where they appear, each `src` once. Help Scout inline images (see `InlineImage`)
+    /// Images are rendered everywhere they appear. Help Scout inline images (see `InlineImage`)
     /// become markdown images of the downloaded file or the CDN URL, and text after one starts a new paragraph
     /// (a new line inside a list). Other images are never linked, because a
     /// markdown viewer would load them and could notify the sender: http(s) images become
@@ -110,7 +110,7 @@ extension OutputFormatter {
             private var afterBullet = false
             private var links: [(href: String?, start: Int)] = []
             private let inlineImagePaths: [String: String]
-            private var shownImageSources: Set<String> = []
+            private var listedImageSources: Set<String> = []
             private(set) var inlineImages: [InlineImage] = []
             /// True after an inline image until the next text or link starts a new paragraph, so a following
             /// `--` or `==` line (such as a `-- ` signature delimiter) is not a setext underline that turns the
@@ -188,9 +188,9 @@ extension OutputFormatter {
             }
 
             private mutating func image(_ attributes: [String: String]) {
-                guard let source = HTMLText.visibleImageSource(attributes), shownImageSources.insert(source).inserted else { return }
+                guard let source = HTMLText.visibleImageSource(attributes) else { return }
                 if let inline = InlineImage(source: source) {
-                    inlineImages.append(inline)
+                    if listedImageSources.insert(source).inserted { inlineImages.append(inline) }
                     write(Markdown.link(label: inline.filename, fallback: "image",
                                         destination: inlineImagePaths[source] ?? inline.url.absoluteString, isImage: true))
                     paragraphAfterImage = true

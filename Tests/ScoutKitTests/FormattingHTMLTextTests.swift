@@ -111,13 +111,15 @@ final class FormattingHTMLTextTests: XCTestCase {
         #"<div>See screenshot:</div><div><img alt="CleanShot 2026-10-15 at 14.09.13@2x.png" width="640" src="\#(appleMail)"></div>"#
     }
 
-    func testHelpScoutInlineImagesRenderInPlaceOnceWithoutTrackingPixels() throws {
+    func testHelpScoutInlineImagesRenderWhereverTheyAppearWithoutTrackingPixels() throws {
         let rendered = OutputFormatter.HTMLText.render(canaryBody)
         XCTAssertEqual(rendered.text, """
         The export button does nothing.
         ![\(canaryName)](\(canary))
 
         Same screenshot again:
+        ![\(canaryName)](\(canary))
+
         --
         Sent from Eason
         """)
@@ -172,7 +174,8 @@ final class FormattingHTMLTextTests: XCTestCase {
         <img src="https://tracker.example.com/pixel.gif" width="1" height=" 0 "> <img src=" "> <img alt="no source"> end</p>
         """
         let output = text(html)
-        XCTAssertEqual(output, "Logo [external image not fetched: tracker.example.com] [external image not fetched: mixed.example.com] "
+        XCTAssertEqual(output, "Logo [external image not fetched: tracker.example.com] [external image not fetched: tracker.example.com] "
+                       + "[external image not fetched: mixed.example.com] "
                        + "[external image not fetched: d33v4339jhl8k0.cloudfront.net.evil.com] "
                        + "[external image not fetched: d33v4339jhl8k0.cloudfront.net] "
                        + "[image not shown] [image not shown] [image not shown] end")

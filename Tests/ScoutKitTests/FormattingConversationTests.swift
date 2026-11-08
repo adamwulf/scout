@@ -256,6 +256,8 @@ final class FormattingConversationTests: XCTestCase {
 
         ![\(canaryName)](\(canary))
 
+        ![\(appleMailName)](files/inline-aaa-\(appleMailName))
+
         [external image not fetched: tracker.example.com]
 
         [invoice.pdf](files/11-invoice.pdf)
