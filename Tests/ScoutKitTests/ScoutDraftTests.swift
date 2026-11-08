@@ -107,6 +107,24 @@ final class ScoutDraftTests: XCTestCase {
         }
     }
 
+    func testScheduledDraftsAreNeverEditedOrReplaced() async throws {
+        let schedules: [JSONValue] = [.object(["scheduledFor": .string("2027-04-01T12:00:00Z")]), .object([:]), .bool(true)]
+        for scheduled in schedules {
+            for (thread, content) in [(Int?.none, ReplyContent.text("Hi", html: false)), (90, .template(3))] {
+                let (client, transport) = client([.json(200, conversation), try page([draft(scheduled: scheduled)])])
+                do {
+                    _ = try await client.saveDraft(conversation: 12, thread: thread, content: content)
+                    XCTFail("Edited scheduled draft")
+                } catch {
+                    XCTAssertTrue(error.localizedDescription.contains("Draft 90 in conversation 12 is scheduled"))
+                    XCTAssertTrue(error.localizedDescription.contains("Help Scout"))
+                }
+                let requests = await transport.requests
+                XCTAssertEqual(requests.map(\.method), ["GET", "GET"])
+            }
+        }
+    }
+
     func testUnsupportedSingleDraftDoesNotCauseCreation() async throws {
         let (client, transport) = client([.json(200, conversation), try page([draft(type: "forwardparent")])])
         do { _ = try await client.saveDraft(conversation: 12, content: .text("Hi", html: false)); XCTFail() }
