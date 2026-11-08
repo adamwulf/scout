@@ -163,8 +163,9 @@ final class FormattingConversationTests: XCTestCase {
             "scheduled": .object(["scheduledFor": .string("2024-01-03T09:00:00Z")]),
             "cc": .array([.string("boss@example.com")]),
             "_embedded": .object(["attachments": .array([
-                .object(["filename": .string("invoice.pdf"), "mimeType": .string("application/pdf"), "state": .string("valid")]),
-                .object(["filename": .string("bad.exe"), "state": .string("virus")]),
+                .object(["id": .integer(11), "filename": .string("invoice.pdf"), "mimeType": .string("application/pdf"), "state": .string("valid")]),
+                .object(["id": .integer(12), "filename": .string("bad.exe"), "state": .string("virus")]),
+                .object(["filename": .string("legacy.txt")]),
             ])]),
         ])
         let output = try OutputFormatter.conversation(conversation, threads: [scheduled], format: .markdown)
@@ -178,11 +179,48 @@ final class FormattingConversationTests: XCTestCase {
         - Time: 2024-01-01T09:00:00Z
         - Cc: boss@example.com
         - Scheduled for: 2024-01-03T09:00:00Z
-        - Attachments: invoice.pdf (application/pdf), bad.exe (virus detected)
+        - Attachments: invoice.pdf (ID 11, application/pdf), bad.exe (ID 12, virus detected), legacy.txt
 
         Later
 
         """))
+    }
+
+    func testMarkdownLinksDownloadedAttachmentsAndEmbedsImages() throws {
+        let attachments: [JSONValue] = [
+            .object(["id": .integer(21), "filename": .string("photo.png"), "mimeType": .string("image/png")]),
+            .object(["id": .integer(22), "filename": .string("Screen Shot (1).png"), "mimeType": .string("IMAGE/PNG")]),
+            .object(["id": .integer(23), "filename": .string("invoice[final].pdf"), "mimeType": .string("application/pdf")]),
+            .object(["id": .integer(24), "filename": .string("not-downloaded.png"), "mimeType": .string("image/png")]),
+            .object(["id": .integer(25), "filename": .string(""), "mimeType": .string("image/jpeg")]),
+        ]
+        let withFiles = thread(1, type: "customer", state: "published", author: jane, createdAt: "2024-01-01T09:00:00Z",
+                               body: "See attached", extra: ["_embedded": .object(["attachments": .array(attachments)])])
+        let paths = [21: "files/21-photo.png", 22: "files/22-Screen Shot (1).png", 23: #"C:\dir/23-invoice[final].pdf"#,
+                     25: "files/25-attachment", 99: "files/99-other.png"]
+
+        let output = try OutputFormatter.conversation(conversation, threads: [withFiles], format: .markdown, attachmentPaths: paths)
+
+        XCTAssertTrue(output.hasSuffix("""
+        - Attachments: photo.png (ID 21, image/png), Screen Shot (1).png (ID 22, IMAGE/PNG), invoice[final].pdf (ID 23, application/pdf), not-downloaded.png (ID 24, image/png), (ID 25, image/jpeg)
+
+        See attached
+
+        ![photo.png](files/21-photo.png)
+
+        ![Screen Shot (1).png](<files/22-Screen Shot (1).png>)
+
+        [invoice\\[final\\].pdf](C:\\\\dir/23-invoice[final].pdf)
+
+        ![attachment](files/25-attachment)
+
+        """), output)
+        XCTAssertFalse(output.contains("not-downloaded.png]("))
+
+        let plain = try OutputFormatter.conversation(conversation, threads: [withFiles], format: .markdown)
+        XCTAssertTrue(plain.hasSuffix("\n\nSee attached\n"))
+        let json = try OutputFormatter.conversation(conversation, threads: [withFiles], format: .json, attachmentPaths: paths)
+        XCTAssertFalse(json.contains("files/21-photo.png"))
     }
 
     func testEmptyThreadsAndConversationDetail() throws {

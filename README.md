@@ -87,6 +87,18 @@ Lists return **one complete API page**. When more results exist, stderr prints a
 
 List formats are `table` (default), `json`, `jsonl`, and `id`. Conversation tables from `list` and `search` end with Help Scout's message preview, shortened to 200 columns. JSON lists have `items`, `nextCursor` and `nextPage`; JSONL/ID contain only rows. Detail formats are `md` (default) and `json`. JSON preserves original HTML and optional API fields; Markdown provides a small HTML-to-text conversion. Hints and errors go to stderr.
 
+## Attachments
+
+```sh
+scout ro show 987654 -o attachments
+scout ro attachments 987654 -o attachments
+scout ro attachments 987654 -o attachments --attachment 12345
+```
+
+`show` Markdown lists each thread's attachments with their attachment IDs. Help Scout serves attachment contents only through the authenticated API, so Markdown can only display files saved locally.[^15] `show -o DIR` (`--output-dir`) also downloads every attachment and links each file after its thread body; images are embedded as `![name](DIR/file)`. Links use `DIR` as written (with `~` expanded), so a relative directory works when the Markdown is saved in the current directory. `-o` requires Markdown output; with `--format json`, download separately with `attachments`.
+
+`attachments` requires `-o DIR` and prints one saved path per line; `--attachment ID` saves only that attachment. The directory is created if missing. Files are named `<attachment ID>-<filename>`. Control characters are removed, and path separators, `:`, `<`, `>`, `#`, `?` and `%` become `_`. A file therefore never lands outside `DIR`, and Markdown links to it work. Downloading again atomically replaces the same file. Attachments Help Scout flags as viruses are skipped, and requesting one with `--attachment` is an error. Skips and failures are reported on stderr. A failed download does not stop the others, and the command exits nonzero if any failed. Both commands only write local files, so they are available under `ro`.
+
 ## Draft and send replies
 
 ```sh
@@ -179,9 +191,9 @@ The library never prints. `ScoutHTTPClient` accepts an injected transport, token
 
 ## Initial release limits and verification
 
-This version supports auth, inboxes, conversation read/search/status changes, customer read/filter, saved-reply read/create/update/delete/use, draft creation/update/publication and new reply sending. Attachment editing, customer editing, new outbound conversations, local template storage, browser OAuth, general scheduling, draft deletion and multiple accounts are deferred. The original implementation plan is in [PLAN.md](PLAN.md); the draft lifecycle plan and API research are in [DRAFT-LIFECYCLE-PLAN.md](DRAFT-LIFECYCLE-PLAN.md).
+This version supports auth, inboxes, conversation read/search/status changes, attachment download, customer read/filter, saved-reply read/create/update/delete/use, draft creation/update/publication and new reply sending. Attachment upload and editing, customer editing, new outbound conversations, local template storage, browser OAuth, general scheduling, draft deletion and multiple accounts are deferred. The original implementation plan is in [PLAN.md](PLAN.md); the draft lifecycle plan and API research are in [DRAFT-LIFECYCLE-PLAN.md](DRAFT-LIFECYCLE-PLAN.md).
 
-Tests use fake HTTP responses and isolated configuration fixtures. **No live Help Scout API call or real message send has been used to validate this release.** First try `auth status`, `ro inboxes`, `ro list`, and `ro show` with your credentials. Verify drafting and status preservation on an explicitly chosen test conversation before regular use. On that test conversation, try `mark pending`, `mark closed`, and `mark active`, each followed by its API ID; confirm each status with `ro show`, then restore its original status with `mark <original-status> <id>`. Test `mark spam` separately with a disposable sender, then use Help Scout’s **Unmark as Spam** action for cleanup; the update API documentation does not specify whether setting `active` also reverses sender filtering.
+Tests use fake HTTP responses and isolated configuration fixtures. **No live Help Scout API call or real message send has been used to validate this release.** First try `auth status`, `ro inboxes`, `ro list`, and `ro show` with your credentials, then `ro show ID -o DIR` on a conversation with an image attachment. Verify drafting and status preservation on an explicitly chosen test conversation before regular use. On that test conversation, try `mark pending`, `mark closed`, and `mark active`, each followed by its API ID; confirm each status with `ro show`, then restore its original status with `mark <original-status> <id>`. Test `mark spam` separately with a disposable sender, then use Help Scout’s **Unmark as Spam** action for cleanup; the update API documentation does not specify whether setting `active` also reverses sender filtering.
 
 [^1]: [Help Scout authentication](https://developer.helpscout.com/mailbox-api/overview/authentication/)
 [^2]: [Create reply thread](https://developer.helpscout.com/mailbox-api/endpoints/conversations/threads/reply/)
@@ -198,3 +210,4 @@ Tests use fake HTTP responses and isolated configuration fixtures. **No live Hel
 [^12]: [Update thread schedule](https://developer.helpscout.com/mailbox-api/endpoints/conversations/threads/schedule/update/)
 [^13]: [Publish thread schedule](https://developer.helpscout.com/mailbox-api/endpoints/conversations/threads/schedule/publish/)
 [^14]: [Schedule a reply to send later](https://docs.helpscout.com/article/1577-schedule-a-reply-to-send-later)
+[^15]: [Get attachment data](https://developer.helpscout.com/mailbox-api/endpoints/conversations/attachments/get-data/)

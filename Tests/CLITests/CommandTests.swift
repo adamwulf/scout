@@ -9,7 +9,8 @@ final class CommandTests: XCTestCase {
     }
 
     func testReadOnlyGroupAcceptsReadsAndRejectsWrites() throws {
-        for arguments in [["inboxes"], ["list"], ["show", "12"], ["search", "number:123"],
+        for arguments in [["inboxes"], ["list"], ["show", "12"], ["show", "12", "-o", "files"], ["attachments", "12", "-o", "files"],
+                          ["search", "number:123"],
                           ["customers", "--email", "a@b.com"], ["customer", "42"], ["templates"],
                           ["template", "10"], ["auth", "status"]] {
             _ = try Scout.parseAsRoot(["ro"] + arguments)
@@ -34,6 +35,29 @@ final class CommandTests: XCTestCase {
                           ["mark", "spam", "abc"], ["mark", "all", "12"], ["mark", "archive", "12"],
                           ["mark", "12", "spam"], ["mark", "spam", "12", "--body", "Hi"]] {
             XCTAssertThrowsError(try Scout.parseAsRoot(arguments), "\(arguments)")
+        }
+    }
+
+    func testAttachmentDownloadsRequireAnOutputDirectory() throws {
+        for prefix: [String] in [[], ["ro"]] {
+            let all = try XCTUnwrap(Scout.parseAsRoot(prefix + ["attachments", "12", "-o", "files"]) as? Attachments)
+            XCTAssertEqual(all.id, 12)
+            XCTAssertEqual(all.outputDir, "files")
+            XCTAssertNil(all.attachment)
+            let one = try XCTUnwrap(Scout.parseAsRoot(prefix + ["attachments", "12", "--output-dir", "~/files", "--attachment", "5"]) as? Attachments)
+            XCTAssertEqual(one.outputDir, "~/files")
+            XCTAssertEqual(one.attachment, 5)
+
+            let show = try XCTUnwrap(Scout.parseAsRoot(prefix + ["show", "12", "-o", "files"]) as? Show)
+            XCTAssertEqual(show.outputDir, "files")
+            XCTAssertNil(try XCTUnwrap(Scout.parseAsRoot(prefix + ["show", "12"]) as? Show).outputDir)
+
+            for arguments in [["attachments", "12"], ["attachments", "12", "-o"], ["attachments", "12", "-o", " "],
+                              ["attachments", "0", "-o", "files"], ["attachments", "12", "-o", "files", "--attachment", "0"],
+                              ["attachments", "-o", "files"], ["show", "12", "-o", ""],
+                              ["show", "12", "-o", "files", "--format", "json"]] {
+                XCTAssertThrowsError(try Scout.parseAsRoot(prefix + arguments), "\(arguments)")
+            }
         }
     }
 
