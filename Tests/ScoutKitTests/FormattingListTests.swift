@@ -7,11 +7,13 @@ final class FormattingListTests: XCTestCase {
         try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8))
     }
 
-    private func conversation(id: Int, number: Int, status: String, customer: JSONValue, subject: String) -> JSONValue {
-        .object([
+    private func conversation(id: Int, number: Int, status: String, customer: JSONValue, subject: String, preview: String? = nil) -> JSONValue {
+        var fields: [String: JSONValue] = [
             "id": .integer(id), "number": .integer(number), "status": .string(status),
             "primaryCustomer": customer, "subject": .string(subject),
-        ])
+        ]
+        if let preview { fields["preview"] = .string(preview) }
+        return .object(fields)
     }
 
     // MARK: JSON
@@ -83,17 +85,17 @@ final class FormattingListTests: XCTestCase {
 
     // MARK: Tables
 
-    func testConversationTableShowsIDNumberStatusCustomerAndSubject() throws {
+    func testConversationTableShowsIDNumberStatusCustomerSubjectAndPreview() throws {
         let page = ResourcePage(items: [
             conversation(id: 101, number: 7, status: "active",
                          customer: .object(["first": .string("Jane"), "last": .string("Doe"), "email": .string("jane@example.com")]),
-                         subject: "Refund request"),
+                         subject: "Refund request", preview: "Hi,   I was charged\ntwice this month."),
             conversation(id: 2002, number: 1234, status: "pending", customer: .object(["first": .string("Bob")]), subject: ""),
         ])
         let output = try OutputFormatter.list(page, kind: .conversation, format: .table)
         XCTAssertEqual(output, """
-        ID    NUMBER  STATUS   CUSTOMER          SUBJECT
-        101   7       active   jane@example.com  Refund request
+        ID    NUMBER  STATUS   CUSTOMER          SUBJECT         PREVIEW
+        101   7       active   jane@example.com  Refund request  Hi, I was charged twice this month.
         2002  1234    pending  Bob
 
         """)
@@ -101,7 +103,7 @@ final class FormattingListTests: XCTestCase {
 
     func testEmptyTablePrintsHeaderOnly() throws {
         XCTAssertEqual(try OutputFormatter.list(ResourcePage(items: []), kind: .conversation, format: .table),
-                       "ID  NUMBER  STATUS  CUSTOMER  SUBJECT\n")
+                       "ID  NUMBER  STATUS  CUSTOMER  SUBJECT  PREVIEW\n")
         XCTAssertEqual(try OutputFormatter.list(ResourcePage(items: []), kind: .template, format: .table), "ID  NAME  PREVIEW\n")
     }
 
@@ -172,11 +174,16 @@ final class FormattingListTests: XCTestCase {
 
     func testTableTruncatesLongFreeTextColumns() throws {
         let subject = String(repeating: "word ", count: 40)
-        let page = ResourcePage(items: [conversation(id: 1, number: 1, status: "active", customer: .null, subject: subject)])
+        let preview = String(repeating: "text ", count: 60)
+        let page = ResourcePage(items: [conversation(id: 1, number: 1, status: "active", customer: .null, subject: subject, preview: preview)])
         let row = try OutputFormatter.list(page, kind: .conversation, format: .table).split(separator: "\n")[1]
-        let shown = String(row[row.range(of: "word")!.lowerBound...])
+        let previewStart = row.range(of: "text")!.lowerBound
+        let shownSubject = String(row[row.range(of: "word")!.lowerBound..<previewStart]).trimmingCharacters(in: .whitespaces)
+        let shownPreview = String(row[previewStart...])
 
-        XCTAssertTrue(shown.hasSuffix("…"))
-        XCTAssertEqual(OutputFormatter.TerminalText.displayWidth(shown), 80)
+        XCTAssertTrue(shownSubject.hasSuffix("…"))
+        XCTAssertEqual(OutputFormatter.TerminalText.displayWidth(shownSubject), 80)
+        XCTAssertTrue(shownPreview.hasSuffix("…"))
+        XCTAssertEqual(OutputFormatter.TerminalText.displayWidth(shownPreview), 200)
     }
 }

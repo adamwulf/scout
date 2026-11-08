@@ -48,6 +48,7 @@ extension OutputFormatter {
                         return email.isEmpty ? personName(customer) : email
                     },
                     Column(title: "SUBJECT", maxWidth: 80) { $0["subject"].string },
+                    Column(title: "PREVIEW", maxWidth: 200) { $0["preview"].string },
                 ]
             case .customer:
                 return [

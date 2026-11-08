@@ -28,7 +28,7 @@ scout ro templates --inbox 123
 
 IDs are API IDs, not conversation numbers. Search requires field:value syntax, covers every inbox/status unless restricted in the query, and ignores the default inbox. Quote email values: plus and hyphen are reserved query characters. For an Allume user ID, use Allume to obtain the email, then search Scout by email; do not guess Help Scout IDs.
 
-List formats are `table` (default), `json`, `jsonl`, and `id`. Detail formats are `md` (Markdown, default for `show` and `customer`) and `json`. `template` also supports `raw`, its default.
+List formats are `table` (default), `json`, `jsonl`, and `id`. Conversation tables from `list` and `search` include each conversation's message preview, which is usually enough to sort or triage without JSON or `show`. Detail formats are `md` (Markdown, default for `show` and `customer`) and `json`. `template` also supports `raw`, its default.
 
 Lists return one complete page. Follow the `Next:` command on stderr until done; it preserves filters and output format. JSON list output contains items and continuation metadata. JSONL and ID output contain rows only. `show` reads every thread page and labels draft/published/hidden/review states. JSON retains original HTML.
 
