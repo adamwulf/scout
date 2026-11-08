@@ -8,7 +8,10 @@ extension OutputFormatter {
         }
 
         static func render(_ items: [JSONValue], kind: ResourceKind) -> String {
-            let columns = columns(for: kind)
+            var columns = columns(for: kind)
+            if kind == .template, items.contains(where: { $0["chatPreview"].string != nil }) {
+                columns.append(Column(title: "CHAT PREVIEW", maxWidth: 80) { $0["chatPreview"].string })
+            }
             let header = columns.map(\.title)
             let rows = items.map { item in
                 columns.map { column -> String in

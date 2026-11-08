@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Read Help Scout inboxes, conversations, customers with scout; read, create, update and delete saved replies; mark conversation status, create drafts and send replies when explicitly instructed.
+description: Read Help Scout inboxes, conversations, customers and saved replies with scout. When explicitly instructed, create, update or delete saved replies, mark conversation status, create drafts or send replies.
 ---
 
 # Scout
@@ -45,7 +45,7 @@ scout template-create --inbox 123 --name 'Chat greeting' --chat-text 'Hi there!'
 scout ro templates --inbox 123 --include-chat --format json
 ```
 
-Only mutate saved replies when authorized by the user. Read the target with `scout ro template ID --inbox INBOX --format json` before updating or deleting. Create requires a name and an email body or plain-text `--chat-text` (or both). Email bodies use `--body` or `--body-file` (including `-` for stdin); add `--html` for HTML. Saved-reply variables are allowed when storing templates. Update preserves omitted fields; empty fields and clearing a channel are not supported. Avoid simultaneous edits to the same saved reply because update reads then writes it. All commands use `--inbox` or `SCOUT_INBOX_ID`.
+Only mutate saved replies when authorized by the user. Read the target with `scout ro template ID --inbox INBOX --format json` before updating or deleting. Create requires a name and an email body or plain-text `--chat-text` (or both). Email bodies use `--body` or `--body-file` (including `-` for stdin); add `--html` for HTML. Saved-reply variables are allowed when storing templates. Update preserves omitted fields; empty fields and clearing a channel are not supported. Avoid simultaneous edits to the same saved reply because update reads then writes it. All commands use `--inbox` or `SCOUT_INBOX_ID`. Use `template --format md|json` to inspect chat content; raw export is for email HTML.
 
 Writes return JSON receipts. A successful create may return `templateID: null`; list templates to find its ID, and do not repeat the create command. After a timeout/server error, inspect the inbox's saved replies before retrying. Live saved-reply writes have not been verified; tests are offline.
 

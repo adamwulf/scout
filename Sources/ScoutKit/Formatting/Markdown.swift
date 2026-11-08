@@ -43,6 +43,10 @@ extension OutputFormatter {
             document.heading(1, value["name"].string ?? "Saved reply")
             document.fields([("ID", scalarText(value["id"]))])
             document.paragraph(HTMLText.plainText(value["text"].string ?? ""))
+            if let chat = value["chatText"].string, !chat.isEmpty {
+                document.heading(2, "Chat")
+                document.paragraph(chat)
+            }
         }
 
         private static func customer(_ value: JSONValue, into document: inout Document) {

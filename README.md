@@ -147,7 +147,7 @@ scout templates --inbox 123 --include-chat --format json
 
 All three write commands use `--inbox` or `SCOUT_INBOX_ID` and return a JSON receipt. Create requires `--name` and an email body or `--chat-text` (or both). Choose `--body` or `--body-file`, including `--body-file -` for standard input. Email bodies are escaped plain text unless `--html` is specified; saved-reply variables are allowed. The library's `text` argument takes email HTML directly.
 
-Update accepts any combination of name, email body, and chat text. It reads the current saved reply and preserves fields you omit when submitting the PUT request. Empty fields are rejected; clearing an individual channel is not supported. Avoid simultaneous edits to the same saved reply, since the read and write are separate requests. Use `template --format json` to inspect both email and chat content.
+Update accepts any combination of name, email body, and chat text. It reads the current saved reply and preserves fields you omit when submitting the PUT request. Empty fields are rejected; clearing an individual channel is not supported. Avoid simultaneous edits to the same saved reply, since the read and write are separate requests. Use `template --format json` or `template --format md` to inspect both email and chat content. With `templates --include-chat`, table output adds a chat preview column when chat previews are returned.
 
 Create may succeed without returning an ID; its receipt then has `templateID: null`. List templates to find the new reply instead of creating it again. After a timeout or server error on any write, inspect the inbox's saved replies before retrying. These commands have offline test coverage; live saved-reply writes have not been verified.
 

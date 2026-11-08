@@ -138,6 +138,38 @@ final class ScoutClientTests: XCTestCase {
         XCTAssertNil(requests[0].body)
     }
 
+    func testTemplateRenamePreservesSingleChannelReplies() async throws {
+        for current in [
+            #"{"id":10,"name":"Chat","text":null,"chatText":"Hi"}"#,
+            #"{"id":10,"name":"Email","text":"<p>Hi</p>","chatText":null}"#,
+            #"{"id":10,"name":"Email","text":"<p>Hi</p>"}"#
+        ] {
+            let (client, transport) = client([.json(200, current), .json(204, "")])
+            _ = try await client.updateTemplate(10, inbox: 7, name: "Renamed")
+            let requests = await transport.requests
+            let body = try JSONDecoder().decode(JSONValue.self, from: XCTUnwrap(requests[1].body))
+            let stored = try JSONDecoder().decode(JSONValue.self, from: Data(current.utf8))
+            let expected: JSONValue = stored["text"].string == nil
+                ? .object(["name": .string("Renamed"), "chatText": .string("Hi")])
+                : .object(["name": .string("Renamed"), "text": .string("<p>Hi</p>")])
+            XCTAssertEqual(body, expected)
+        }
+    }
+
+    func testTemplateMissingNamePreventsPutUnlessSupplied() async throws {
+        let nameless = #"{"id":10,"text":"Hi"}"#
+        let (missingClient, missingTransport) = client([.json(200, nameless)])
+        do { _ = try await missingClient.updateTemplate(10, inbox: 7, text: "Updated"); XCTFail() }
+        catch { XCTAssertTrue(error.localizedDescription.contains("Provide --name")) }
+        let requests = await missingTransport.requests
+        XCTAssertEqual(requests.map(\.method), ["GET"])
+
+        let (repairClient, repairTransport) = client([.json(200, nameless), .json(204, "")])
+        _ = try await repairClient.updateTemplate(10, inbox: 7, name: "Named")
+        let repaired = await repairTransport.requests
+        XCTAssertEqual(repaired.map(\.method), ["GET", "PUT"])
+    }
+
     func testTemplateInvalidInputsDoNotMakeRequests() async throws {
         let (client, transport) = client([])
         do { _ = try await client.createTemplate(inbox: 0, name: "Hi", text: "Hi"); XCTFail() } catch {}
@@ -153,7 +185,7 @@ final class ScoutClientTests: XCTestCase {
     }
 
     func testTemplateWriteFailuresAreNotReplayed() async throws {
-        for failure in [ScriptedHTTPTransport.Reply.failure(URLError(.timedOut)), .json(500), .json(403), .json(404)] {
+        for (failure, uncertain) in [(ScriptedHTTPTransport.Reply.failure(URLError(.timedOut)), true), (.json(500), true), (.json(403), false), (.json(404), false)] {
             for operation in ["create", "update", "delete"] {
                 let replies: [ScriptedHTTPTransport.Reply] = operation == "update"
                     ? [.json(200, #"{"name":"Original","text":"Hello"}"#), failure] : [failure]
@@ -168,6 +200,9 @@ final class ScoutClientTests: XCTestCase {
                 } catch {
                     XCTAssertTrue(error is ScoutError)
                     XCTAssertFalse(error.localizedDescription.contains("inspect the conversation"))
+                    if uncertain {
+                        XCTAssertTrue(error.localizedDescription.contains("inspect the inbox's saved replies before retrying"))
+                    }
                 }
                 let requests = await transport.requests
                 XCTAssertEqual(requests.count, replies.count)

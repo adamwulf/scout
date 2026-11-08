@@ -26,8 +26,8 @@ struct TemplateWriteOptions: ParsableArguments {
         guard body != nil || bodyFile != nil else { return nil }
         let text = try ReplyBody.read(body: body, file: bodyFile,
                                       stdinIsTerminal: isatty(STDIN_FILENO) != 0,
-                                      readStdin: { FileHandle.standardInput.readDataToEndOfFile() },
-                                      readFile: { try Data(contentsOf: URL(fileURLWithPath: $0)) })
+                                      readStdin: { try FileHandle.standardInput.readToEnd() ?? Data() },
+                                      readFile: { try Data(contentsOf: URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath)) })
         return try ReplyBody.prepareTemplate(text, html: html)
     }
 }
