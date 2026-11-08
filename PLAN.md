@@ -48,12 +48,12 @@ scout customers --email EMAIL [--cursor CURSOR]
 scout customers --query QUERY [--cursor CURSOR]
 scout customer CUSTOMER_ID
 scout templates [--inbox ID]
-scout template TEMPLATE_ID [--inbox ID] [--format raw|markdown|json]
+scout template TEMPLATE_ID [--inbox ID] [--format raw|md|json]
 scout ro <any read command above except auth login>
 ```
 
 - Lists return one complete API page; no arbitrary item limit that could discard part of a page. Cursor/page flags allow continuation. Conversations and customers use cursors, inboxes and threads use page numbers, and saved replies return a plain array. Print a complete shell-quoted next command preserving filters to stderr in every format; omit it on the last page. `show` fetches all thread pages.
-- List formats: table, json, jsonl, id. Detail formats: markdown, json. Library renderers are pure. JSON list output has stable items + continuation metadata; jsonl/id emit just rows and continuation hints go to stderr. Preserve customer properties and thread metadata in JSON without requiring every possible API field to be modeled.
+- List formats: table, json, jsonl, id. Detail formats: md, json. Library renderers are pure. JSON list output has stable items + continuation metadata; jsonl/id emit just rows and continuation hints go to stderr. Preserve customer properties and thread metadata in JSON without requiring every possible API field to be modeled.
 - `show` renders oldest first, with each thread labeled author, timestamp, type, and state (including drafts/hidden). Small deterministic HTML-to-text conversion provides readable output; JSON retains original HTML. Conversation tables show both API ID and human conversation number.
 - `template` defaults to raw HTML text with no wrapper, so it can be saved to a file and edited. `--inbox` overrides the environment default; templates require one or the other. Search ignores that default and uses only its query, including any `inboxId:` restriction. Reject obvious bare-text searches locally with a valid field-query example; do not recreate the server query parser.
 - Customer lookup supports Help Scout customer ID and documented email/name queries. `customers --query` expects advanced field syntax, not free text. Application-specific user-ID lookup is out of scope per Adam; do not guess a property query or scan the whole customer directory. A customer-list 403 explains the Contacts and Companies directory permission.[^4]
@@ -99,7 +99,7 @@ All five phases are complete. The implementation is committed on `agent/helpscou
 - Final implementation reviews: `agent-68e2980e` and `agent-5286b781` approved `16d42e8`. Both independently ran the 112-test suite and release build. The usability reviewer also checked help, rejected read-only writes, bare-text search validation, README examples and citations.
 - Verification: `swift test --disable-sandbox` passes (108 library tests + 4 CLI tests); `swift build --disable-sandbox -c release` succeeds; root and send help smoke checks pass. Tests never use real credentials or send real messages.
 - Environment adjustment: configuration fixtures use `scout-fixture.env` through an internal test-only discovery override because this sandbox blocks all `.env` files, including synthetic ones. Public discovery still uses `.env`.
-- Deferred review notes: show/customer help lists `raw` among the shared enum values, but explicitly describes markdown/json and rejects raw during parsing. This cosmetic help mismatch does not affect supported commands. Extra CLI continuation-assembly tests were suggested but not required: library shell quoting/continuation and CLI parse coverage passed.
+- Deferred review notes: show/customer help lists `raw` among the shared enum values, but explicitly describes md/json and rejects raw during parsing. This cosmetic help mismatch does not affect supported commands. Extra CLI continuation-assembly tests were suggested but not required: library shell quoting/continuation and CLI parse coverage passed.
 - Remaining live checks: authenticate, list/read/search/customer/template results, actual cursor and thread pagination behavior, merged conversation response, and draft status preservation on a user-selected test conversation. No live API calls or real sends were performed.
 
 ## Sources

@@ -5,7 +5,8 @@ public enum ListFormat: String, CaseIterable, Sendable {
 
 /// Output formats for commands that return one resource. `raw` is only meaningful for templates.
 public enum DetailFormat: String, CaseIterable, Sendable {
-    case markdown, json, raw
+    case markdown = "md"
+    case json, raw
 }
 
 /// The Help Scout resource a renderer receives, used to pick table columns and markdown labels.

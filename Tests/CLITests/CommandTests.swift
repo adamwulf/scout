@@ -31,6 +31,21 @@ final class CommandTests: XCTestCase {
         XCTAssertEqual(send.status, .closed)
     }
 
+    func testMarkdownFormatUsesMD() throws {
+        for prefix: [String] in [[], ["ro"]] {
+            let show = try XCTUnwrap(Scout.parseAsRoot(prefix + ["show", "12", "--format", "md"]) as? Show)
+            XCTAssertEqual(show.output.format, .markdown)
+            let customer = try XCTUnwrap(Scout.parseAsRoot(prefix + ["customer", "42", "--format", "md"]) as? Customer)
+            XCTAssertEqual(customer.output.format, .markdown)
+            let template = try XCTUnwrap(Scout.parseAsRoot(prefix + ["template", "10", "--format", "md"]) as? Template)
+            XCTAssertEqual(template.format, .markdown)
+
+            for command in ["show", "customer", "template"] {
+                XCTAssertThrowsError(try Scout.parseAsRoot(prefix + [command, "12", "--format", "markdown"]))
+            }
+        }
+    }
+
     func testSearchAndCustomerValidationAndFormats() throws {
         XCTAssertThrowsError(try Scout.parseAsRoot(["search", "refund"]))
         XCTAssertThrowsError(try Scout.parseAsRoot(["customers"]))

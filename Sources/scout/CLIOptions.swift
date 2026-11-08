@@ -22,7 +22,7 @@ struct ListOptions: ParsableArguments {
 }
 
 struct DetailOptions: ParsableArguments {
-    @Option(help: "Output format: markdown or json.") var format: DetailFormat = .markdown
+    @Option(help: "Output format: md or json.") var format: DetailFormat = .markdown
     mutating func validate() throws {
         guard format != .raw else { throw ValidationError("Raw output is only available for template.") }
     }
