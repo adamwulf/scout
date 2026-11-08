@@ -137,13 +137,14 @@ final class ScoutConfigurationTests: XCTestCase {
         XCTAssertFalse(configuration.sourceDescription.contains(outer.path), configuration.sourceDescription)
 
         // Credentials from the environment also end discovery after the first file.
-        _ = try write("OTHER_TOOL_SETTING=1\n", to: "project/sub/scout-fixture.env")
+        let sub = try write("OTHER_TOOL_SETTING=1\n", to: "project/sub/scout-fixture.env")
         let fromEnvironment = try load(environment: ["SCOUT_ACCESS_TOKEN": "env-token"], from: start)
         XCTAssertEqual(try fromEnvironment.authentication(), .accessToken("env-token"))
         XCTAssertNil(fromEnvironment.appID)
         let fromEnvironmentApp = try load(environment: ["SCOUT_APP_ID": "env-id", "SCOUT_APP_SECRET": "env-secret"], from: start)
         XCTAssertEqual(try fromEnvironmentApp.authentication(), .clientCredentials(appID: "env-id", appSecret: "env-secret"))
         XCTAssertNil(fromEnvironmentApp.inboxID, "the farther token and inbox are not read")
+        XCTAssertEqual(fromEnvironmentApp.sourceDescription, "\(sub.path) (nonempty process environment values override it)")
 
         // A file with half of the app pair still ends discovery: the pair never mixes files, and the
         // farther secret and access token are not read.
