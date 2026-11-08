@@ -14,14 +14,16 @@ extension OutputFormatter {
             return document.text
         }
 
-        static func conversation(_ value: JSONValue, threads: [JSONValue]) -> String {
+        /// `attachmentPaths` maps attachment IDs to downloaded files, which are linked after the thread body;
+        /// images are embedded.
+        static func conversation(_ value: JSONValue, threads: [JSONValue], attachmentPaths: [Int: String] = [:]) -> String {
             var document = Document()
             conversationHeader(value, into: &document)
             let sorted = sortedOldestFirst(threads)
             document.heading(2, sorted.isEmpty ? "Threads" : "Threads (\(sorted.count), oldest first)")
             if sorted.isEmpty { document.paragraph("No threads.") }
             for (offset, thread) in sorted.enumerated() {
-                self.thread(thread, number: offset + 1, into: &document)
+                self.thread(thread, number: offset + 1, attachmentPaths: attachmentPaths, into: &document)
             }
             return document.text
         }
@@ -129,15 +131,17 @@ extension OutputFormatter {
             }
         }
 
-        private static func thread(_ thread: JSONValue, number: Int, into document: inout Document) {
+        private static func thread(_ thread: JSONValue, number: Int, attachmentPaths: [Int: String], into document: inout Document) {
             document.heading(3, "\(number). \(threadTitle(thread))")
             let author = thread["createdBy"]
             let authorLabel = personLabel(author).map { label in
                 author["type"].string.map { "\(label) (\($0))" } ?? label
             }
-            let attachments = (thread["_embedded"]["attachments"].array ?? []).compactMap { attachment -> String? in
+            let attachmentList = thread["_embedded"]["attachments"].array ?? []
+            let attachments = attachmentList.compactMap { attachment -> String? in
                 guard let name = attachment["filename"].string else { return nil }
-                let details = [attachment["mimeType"].string, attachment["state"].string == "virus" ? "virus detected" : nil]
+                let details = [attachment["id"].int.map { "ID \($0)" }, attachment["mimeType"].string,
+                               attachment["state"].string == "virus" ? "virus detected" : nil]
                     .compactMap { $0 }
                 return details.isEmpty ? name : "\(name) (\(details.joined(separator: ", ")))"
             }
@@ -161,6 +165,30 @@ extension OutputFormatter {
                 document.paragraph(body)
             } else if actionText?.isEmpty ?? true {
                 document.paragraph("(no body)")
+            }
+            for attachment in attachmentList {
+                guard let id = attachment["id"].int, let path = attachmentPaths[id] else { continue }
+                document.block(attachmentLink(attachment, path: path))
+            }
+        }
+
+        /// `![name](path)` for images and `[name](path)` for other files. The label escapes link brackets;
+        /// a path with spaces, parentheses or angle brackets uses the `<...>` destination form.
+        static func attachmentLink(_ attachment: JSONValue, path: String) -> String {
+            let name = TerminalText.singleLine(attachment["filename"].string ?? "")
+            let label = escaped(name.isEmpty ? "attachment" : name, ["\\", "[", "]"])
+            var destination = escaped(path, ["\\"])
+            if destination.unicodeScalars.contains(where: { $0.properties.isWhitespace || "()<>".unicodeScalars.contains($0) }) {
+                destination = "<" + escaped(destination, ["<", ">"]) + ">"
+            }
+            let isImage = attachment["mimeType"].string?.lowercased().hasPrefix("image/") ?? false
+            return (isImage ? "!" : "") + "[\(label)](\(destination))"
+        }
+
+        private static func escaped(_ text: String, _ characters: Set<Character>) -> String {
+            text.reduce(into: "") { result, character in
+                if characters.contains(character) { result.append("\\") }
+                result.append(character)
             }
         }
 
@@ -227,6 +255,11 @@ extension OutputFormatter {
                     return text.isEmpty ? nil : "- \(TerminalText.singleLine(label)): \(text)"
                 }
                 if !lines.isEmpty { blocks.append(lines.joined(separator: "\n")) }
+            }
+
+            /// Markdown the caller already made safe, such as an attachment link.
+            mutating func block(_ markdown: String) {
+                blocks.append(markdown)
             }
 
             /// Body text. Lines that would start a markdown heading are escaped so message text

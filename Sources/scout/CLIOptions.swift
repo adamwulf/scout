@@ -37,6 +37,12 @@ enum CLI {
         if let next = OutputFormatter.continuation(command: command, page: page) { hint("Next: " + next) }
     }
 
+    /// Prints skipped and failed attachments to stderr and exits nonzero when any download failed.
+    static func report(_ download: AttachmentDownload) throws {
+        OutputFormatter.attachmentProblems(download).forEach(hint)
+        if !download.failed.isEmpty { throw ExitCode.failure }
+    }
+
     static func receipt(_ receipt: ReplyReceipt) throws {
         output(try OutputFormatter.receipt(receipt))
         if receipt.threadID == nil {

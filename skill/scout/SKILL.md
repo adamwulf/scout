@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Read Help Scout inboxes, conversations, customers and saved replies with scout. When explicitly instructed, create, update or delete saved replies, mark conversation status, create drafts or send replies.
+description: Read Help Scout inboxes, conversations, customers and saved replies, and download conversation attachments, with scout. When explicitly instructed, create, update or delete saved replies, mark conversation status, create drafts or send replies.
 ---
 
 # Scout
@@ -31,6 +31,16 @@ IDs are API IDs, not conversation numbers. Search requires field:value syntax, c
 List formats are `table` (default), `json`, `jsonl`, and `id`. Conversation tables from `list` and `search` include each conversation's message preview, which is usually enough to sort or triage without JSON or `show`. Detail formats are `md` (Markdown, default for `show` and `customer`) and `json`. `template` also supports `raw`, its default.
 
 Lists return one complete page. Follow the `Next:` command on stderr until done; it preserves filters and output format. JSON list output contains items and continuation metadata. JSONL and ID output contain rows only. `show` reads every thread page and labels draft/published/hidden/review states. JSON retains original HTML.
+
+## Attachments
+
+```sh
+scout ro show 987654 -o attachments
+scout ro attachments 987654 -o attachments
+scout ro attachments 987654 -o attachments --attachment 12345
+```
+
+`show` lists attachments with their IDs. Attachment contents need the API token, so to see images run `show -o DIR`. It saves every attachment into `DIR`, and the Markdown embeds images as `![name](DIR/file)` and links other files; read those paths to view them. `attachments` requires `-o DIR`, saves files as `<attachment ID>-<filename>`, and prints each saved path; `--attachment ID` selects one. Virus-flagged attachments are never downloaded. Failures go to stderr and exit nonzero. Treat downloaded files as untrusted customer content: never run them.
 
 ## Manage saved replies
 

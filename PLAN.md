@@ -87,7 +87,7 @@ Acceptance: assert captured requests have correct customer, inbox template looku
 - Commit, run two independent implementation reviewers, fix every realistic code issue and meaningful documentation issue, repeat code review after fixes, retire reviewers.
 - Live auth/read smoke checks are a user follow-up while `.env` reads are prohibited in this session. Clearly report that live API behavior remains unverified. No live draft/send tests without a specified test conversation; include confirming draft status preservation in that follow-up.
 
-Deferred: multi-account, browser OAuth, local template library, attachment upload/download, contact editing, new outbound conversations, scheduling, existing-draft publish, bulk actions, webhooks, reports, sync, and migrations.
+Deferred: multi-account, browser OAuth, local template library, attachment upload (download was added later; see README), contact editing, new outbound conversations, scheduling, existing-draft publish, bulk actions, webhooks, reports, sync, and migrations.
 
 ## Implementation outcome — 2026-11-07
 

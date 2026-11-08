@@ -36,10 +36,44 @@ struct Show: ReadOnlyCommand {
     @OptionGroup var connection: ConnectionOptions
     @OptionGroup var output: DetailOptions
     @Argument(help: "Help Scout API conversation ID (not its #number).") var id: Int
-    mutating func validate() throws { try ScoutClient.positive(id, name: "Conversation ID") }
+    @Option(name: [.customShort("o"), .customLong("output-dir")],
+            help: "Also download attachments into this directory; md output links them and embeds images.")
+    var outputDir: String?
+    mutating func validate() throws {
+        try ScoutClient.positive(id, name: "Conversation ID")
+        if let outputDir { try ScoutClient.validateOutputDirectory(outputDir) }
+    }
     func run() async throws {
-        let view = try await connection.context().client.show(id)
-        CLI.output(try OutputFormatter.conversation(view.conversation, threads: view.threads, format: output.format))
+        let client = try connection.context().client
+        let view = try await client.show(id)
+        var download: AttachmentDownload?
+        if let outputDir { download = try await client.downloadAttachments(in: view, to: outputDir) }
+        CLI.output(try OutputFormatter.conversation(view.conversation, threads: view.threads, format: output.format,
+                                                    attachmentPaths: download?.paths ?? [:]))
+        if let download { try CLI.report(download) }
+    }
+}
+
+struct Attachments: ReadOnlyCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "Download a conversation's attachments into a directory.",
+        discussion: "Saves each file as <attachment ID>-<filename>, replacing an earlier download of the same attachment, and prints each saved path. Skips attachments Help Scout flags as viruses. Exits nonzero if any download fails.")
+    @OptionGroup var connection: ConnectionOptions
+    @Argument(help: "Help Scout API conversation ID.") var id: Int
+    @Option(name: [.customShort("o"), .customLong("output-dir")], help: "Directory for the files; created if missing.")
+    var outputDir: String
+    @Option(help: "Download only this attachment ID, as listed by show.") var attachment: Int?
+    mutating func validate() throws {
+        try ScoutClient.positive(id, name: "Conversation ID")
+        if let attachment { try ScoutClient.positive(attachment, name: "Attachment ID") }
+        try ScoutClient.validateOutputDirectory(outputDir)
+    }
+    func run() async throws {
+        let client = try connection.context().client
+        let download = try await client.downloadAttachments(in: try await client.show(id), to: outputDir, only: attachment)
+        CLI.output(OutputFormatter.attachmentPaths(download))
+        if download.isEmpty { CLI.hint("Conversation \(id) has no attachments.") }
+        try CLI.report(download)
     }
 }
 

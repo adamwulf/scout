@@ -296,7 +296,7 @@ public struct ScoutClient: Sendable {
         }
     }
 
-    private func get(_ path: String, query: [String: String] = [:]) async throws -> JSONValue {
+    func get(_ path: String, query: [String: String] = [:]) async throws -> JSONValue {
         let response = try await http.request(path: path, query: query)
         do { return try JSONDecoder().decode(JSONValue.self, from: response.body) }
         catch { throw ScoutError.decoding("Help Scout returned invalid JSON for GET \(path).") }

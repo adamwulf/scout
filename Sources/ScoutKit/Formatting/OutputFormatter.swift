@@ -44,16 +44,34 @@ public enum OutputFormatter {
     }
 
     /// Renders a conversation with its threads. JSON keeps the full API objects under
-    /// `conversation` and `threads`; markdown lists threads oldest first with labeled metadata.
-    public static func conversation(_ value: JSONValue, threads: [JSONValue], format: DetailFormat) throws -> String {
+    /// `conversation` and `threads`; markdown lists threads oldest first with labeled metadata, and links
+    /// each downloaded attachment in `attachmentPaths` (by attachment ID) after its thread body, embedding images.
+    public static func conversation(_ value: JSONValue, threads: [JSONValue], format: DetailFormat,
+                                    attachmentPaths: [Int: String] = [:]) throws -> String {
         switch format {
         case .json:
             return try prettyJSON(.object(["conversation": value, "threads": .array(threads)]))
         case .raw:
             throw rawUnavailable
         case .markdown:
-            return Markdown.conversation(value, threads: threads)
+            return Markdown.conversation(value, threads: threads, attachmentPaths: attachmentPaths)
         }
+    }
+
+    /// One saved file path per line, for stdout.
+    public static func attachmentPaths(_ download: AttachmentDownload) -> String {
+        download.saved.map { $0.path + "\n" }.joined()
+    }
+
+    /// One line per skipped or failed attachment, for stderr.
+    public static func attachmentProblems(_ download: AttachmentDownload) -> [String] {
+        func label(_ problem: AttachmentDownload.Problem) -> String {
+            let id = problem.attachmentID.map { "attachment \($0)" } ?? "attachment"
+            let name = TerminalText.singleLine(problem.filename)
+            return name.isEmpty ? id : "\(id) (\(name))"
+        }
+        return download.skipped.map { "Skipped \(label($0)): \(TerminalText.singleLine($0.reason))" }
+            + download.failed.map { "Failed to save \(label($0)): \(TerminalText.singleLine($0.reason))" }
     }
 
     private static let rawUnavailable = ScoutError.invalidInput("The raw format is only available for templates.")
